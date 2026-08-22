@@ -129,7 +129,45 @@ export const HEADER_PAYMENT_REQUIRED = "PAYMENT-REQUIRED";
 export const HEADER_PAYMENT_SIGNATURE = "PAYMENT-SIGNATURE";
 export const HEADER_PAYMENT_RESPONSE = "PAYMENT-RESPONSE";
 
+// Largest header we will decode. A max-size transaction plus envelope is
+// ~161 KB once base64'd; this matches the facilitator's 256 KB body cap, so
+// anything larger could never be relayed anyway. Note Node's http server
+// rejects headers over 16 KB by default (`--max-http-header-size`).
+export const MAX_HEADER_CHARS = 256 * 1024;
+
+export type HeaderErrorReason = "empty" | "too_large" | "not_base64" | "not_json" | "not_object" | "schema";
+
+/** Thrown by `decodeHeader`; middleware maps it to HTTP 400. */
+export class HeaderError extends Error {
+  constructor(
+    readonly reason: HeaderErrorReason,
+    readonly issues?: z.ZodIssue[],
+  ) {
+    super(`x402 header: ${reason}`);
+    this.name = "HeaderError";
+  }
+}
+
+/** Compact JSON → base64, the encoding the reference facilitator emits. */
 export const encodeHeader = (o: unknown): string =>
-  Buffer.from(JSON.stringify(o)).toString("base64");
-export const decodeHeader = <T>(s: string, schema: z.ZodType<T>): T =>
-  schema.parse(JSON.parse(Buffer.from(s, "base64").toString("utf8")));
+  Buffer.from(JSON.stringify(o), "utf8").toString("base64");
+
+/**
+ * base64 → JSON → schema. Base64 is checked before decoding because
+ * `Buffer.from(s, "base64")` silently drops invalid characters.
+ */
+export const decodeHeader = <T>(s: string, schema: z.ZodType<T>): T => {
+  if (s.length === 0) throw new HeaderError("empty");
+  if (s.length > MAX_HEADER_CHARS) throw new HeaderError("too_large");
+  if (!Base64.safeParse(s).success) throw new HeaderError("not_base64");
+  let json: unknown;
+  try {
+    json = JSON.parse(Buffer.from(s, "base64").toString("utf8"));
+  } catch {
+    throw new HeaderError("not_json");
+  }
+  if (json === null || typeof json !== "object" || Array.isArray(json)) throw new HeaderError("not_object");
+  const r = schema.safeParse(json);
+  if (!r.success) throw new HeaderError("schema", r.error.issues);
+  return r.data;
+};
