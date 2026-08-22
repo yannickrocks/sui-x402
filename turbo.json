@@ -3,6 +3,9 @@
   "tasks": {
     "build": { "dependsOn": ["^build"], "outputs": ["dist/**"] },
     "typecheck": { "dependsOn": ["^build"] },
-    "test": { "dependsOn": ["^build"] }
+    "test": {
+      "dependsOn": ["^build"],
+      "env": ["E2E", "PAYER_SECRET_KEY", "SUI_GRPC_URL"]
+    }
   }
 }
