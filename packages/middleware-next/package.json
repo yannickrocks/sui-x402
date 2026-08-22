@@ -1,0 +1,9 @@
+{
+  "name": "@sui-x402/next",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": { "build": "tsc -p .", "typecheck": "tsc --noEmit -p ." },
+  "dependencies": { "@sui-x402/core": "workspace:*" }
+}
