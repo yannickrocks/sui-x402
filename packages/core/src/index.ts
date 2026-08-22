@@ -124,6 +124,53 @@ export const Supported = z.object({
 });
 export type Supported = z.infer<typeof Supported>;
 
+/**
+ * Facilitator reason codes. Spec §9 standard codes plus the Sui analogues of
+ * the `invalid_exact_evm_payload_*` family defined by the reference
+ * facilitator (`src/x402.ts`). `test/reason-codes.test.ts` asserts this list
+ * equals the pinned upstream table.
+ */
+export const ReasonCode = z.enum([
+  "insufficient_funds",
+  "invalid_network",
+  "invalid_payload",
+  "invalid_payment_requirements",
+  "unsupported_scheme",
+  "invalid_x402_version",
+  "invalid_transaction_state",
+  "unexpected_verify_error",
+  "unexpected_settle_error",
+  "invalid_exact_sui_payload_signature",
+  "invalid_exact_sui_payload_recipient_mismatch",
+  "invalid_exact_sui_payload_value_mismatch",
+]);
+export type ReasonCode = z.infer<typeof ReasonCode>;
+
+export const isReasonCode = (s: string): s is ReasonCode => ReasonCode.safeParse(s).success;
+
+/**
+ * What a payer can do about a rejection (PRD §8.11, §8.12):
+ * - `refetch_terms`: server and payer disagree on requirements → GET again, pay once more
+ * - `rebuild_tx`: the signed bytes are stale (expired, coins consumed) → rebuild + resign
+ * - `facilitator`: not the payer's fault; back off and retry the same payload
+ * - `none`: terminal for this payment
+ */
+export type RetryHint = "refetch_terms" | "rebuild_tx" | "facilitator" | "none";
+
+export const retryHint = (code: string): RetryHint => {
+  switch (code) {
+    case "invalid_payment_requirements":
+      return "refetch_terms";
+    case "invalid_transaction_state":
+      return "rebuild_tx";
+    case "unexpected_verify_error":
+    case "unexpected_settle_error":
+      return "facilitator";
+    default:
+      return "none";
+  }
+};
+
 // x402 HTTP headers
 export const HEADER_PAYMENT_REQUIRED = "PAYMENT-REQUIRED";
 export const HEADER_PAYMENT_SIGNATURE = "PAYMENT-SIGNATURE";
