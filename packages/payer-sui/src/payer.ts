@@ -18,6 +18,7 @@ import {
   PaymentRequired,
   SettleResponse,
   decodeHeader,
+  decodeHeaderVerbatim,
   encodeHeader,
   retryHint,
   type PaymentRequirements,
@@ -113,23 +114,38 @@ const readBoundedJson = async (response: Response): Promise<unknown> => {
   }
 };
 
+/** A 402 document: validated, plus the JSON exactly as the seller wrote it. */
+interface Terms {
+  document: PaymentRequired;
+  raw: unknown;
+}
+
 /**
  * Terms of a 402: the `PAYMENT-REQUIRED` header, or the body carrying the same
  * JSON (spec-notes #1). Before anything is paid, an unreadable header is a
  * seller bug worth surfacing; after a payment it must not hide the response.
  */
-const readTerms = async (response: Response, surfaceHeaderErrors: boolean): Promise<PaymentRequired | null> => {
+const readTerms = async (response: Response, surfaceHeaderErrors: boolean): Promise<Terms | null> => {
   const header = response.headers.get(HEADER_PAYMENT_REQUIRED);
   if (header !== null) {
     try {
-      return decodeHeader(header, PaymentRequired);
+      const { raw, value } = decodeHeaderVerbatim(header, PaymentRequired);
+      return { document: value, raw };
     } catch (e) {
       if (surfaceHeaderErrors || !(e instanceof HeaderError)) throw e;
       return null;
     }
   }
-  const parsed = PaymentRequired.safeParse(await readBoundedJson(response));
-  return parsed.success ? parsed.data : null;
+  const raw = await readBoundedJson(response);
+  const parsed = PaymentRequired.safeParse(raw);
+  return parsed.success ? { document: parsed.data, raw } : null;
+};
+
+/** The chosen offer as the seller wrote it, keys this schema does not know included. */
+const rawOffer = (terms: Terms, index: number): unknown => {
+  const { raw } = terms;
+  if (typeof raw !== "object" || raw === null || !("accepts" in raw) || !Array.isArray(raw.accepts)) return undefined;
+  return raw.accepts[index];
 };
 
 /** `Retry-After` in seconds, clamped; anything else falls back to the default schedule. */
@@ -146,7 +162,7 @@ const facilitatorUnavailable = (response: Response, hint: RetryHint): boolean =>
 
 interface Attempt {
   response: Response;
-  terms: PaymentRequired | null;
+  terms: Terms | null;
 }
 
 /**
@@ -231,29 +247,34 @@ export class SuiX402Payer {
     let terms = await readTerms(first, true);
     if (terms === null) return { response: first, sent: null };
 
-    let requirement = selectRequirement(terms.accepts, this.#select);
+    let requirement = selectRequirement(terms.document.accepts, this.#select);
     let rebuilds = 0;
     for (;;) {
-      const { built, header } = await this.#sign(requirement, terms.resource);
+      const offer = rawOffer(terms, terms.document.accepts.indexOf(requirement)) ?? requirement;
+      const { built, header } = await this.#sign(requirement, offer, terms.document.resource);
       const sent = { digest: built.digest, accepted: requirement };
       const { response, terms: next } = await this.#sendWithBackoff(input, init, header);
       if (response.status !== 402) return { response, sent };
 
-      const reason = next?.error ?? "";
+      const reason = next?.document.error ?? "";
       const hint = retryHint(reason);
       const retryable = (hint === "refetch_terms" && next !== null) || hint === "rebuild_tx";
       if (rebuilds === MAX_REBUILDS || !retryable) throw new PaymentRejectedError(reason, hint, response);
       await this.#assertNotExecuted(built, reason, hint, response);
       if (hint === "refetch_terms" && next !== null) {
         terms = next;
-        requirement = selectRequirement(terms.accepts, this.#select);
+        requirement = selectRequirement(terms.document.accepts, this.#select);
       }
       rebuilds += 1;
     }
   }
 
   /** Builds and signs; a payment whose local window closed before it could go out is rebuilt once (§8.12). */
-  async #sign(requirement: PaymentRequirements, resource: Resource): Promise<{ built: BuiltPayment; header: string }> {
+  async #sign(
+    requirement: PaymentRequirements,
+    offer: unknown,
+    resource: Resource,
+  ): Promise<{ built: BuiltPayment; header: string }> {
     const windowMs = requirement.maxTimeoutSeconds * 1000;
     const startedAt = this.#now();
     let built = await this.#build(requirement);
@@ -262,7 +283,7 @@ export class SuiX402Payer {
     const payload = {
       x402Version: 2,
       resource,
-      accepted: requirement,
+      accepted: offer,
       payload: { transaction: toBase64(built.bytes), signature },
     };
     // Validated, not rewritten: the header carries the seller's own `accepted` object.
@@ -285,7 +306,7 @@ export class SuiX402Payer {
   async #sendWithBackoff(input: string | URL, init: RequestInit | undefined, header: string): Promise<Attempt> {
     let attempt = await this.#send(input, init, header);
     for (let resend = 0; resend < MAX_RESENDS; resend++) {
-      const hint = retryHint(attempt.terms?.error ?? "");
+      const hint = retryHint(attempt.terms?.document.error ?? "");
       if (!facilitatorUnavailable(attempt.response, hint)) break;
       await this.#sleep(retryAfterMs(attempt.response, resend));
       attempt = await this.#send(input, init, header);

@@ -357,6 +357,17 @@ describe("SuiX402Payer.fetchWithReceipt — happy path", () => {
     expect(transferTo(paymentOf(calls[1]).payload.transaction)).toBe(PAY_TO);
   });
 
+  it("echoes keys of the offer this schema does not know", async () => {
+    const document = { ...fixture, accepts: [{ ...live, discountId: "abc" }] };
+    const header = new Headers({ [HEADER_PAYMENT_REQUIRED]: encodeHeader(document) });
+    const { payer, calls } = setup([new Response(null, { status: 402, headers: header }), new Response(null, { status: 200 })]);
+
+    await payer.fetch(URL_UNDER_TEST);
+
+    expect(rawPaymentOf(calls[1])).toMatchObject({ accepted: { discountId: "abc", amount: live.amount } });
+    expect(paymentOf(calls[1]).accepted).toEqual(live);
+  });
+
   it("replays the caller's method and body on the paid request", async () => {
     const body = JSON.stringify({ query: "whales" });
     const { payer, calls } = setup([required(terms()), new Response(null, { status: 200 })]);
