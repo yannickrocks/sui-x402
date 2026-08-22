@@ -1,5 +1,5 @@
 /**
- * @sui-x402/payer — agent/client-side lib. Wraps fetch: on 402, builds a Sui
+ * @sui-x402/payer-sui — agent/client-side lib. Wraps fetch: on 402, builds a Sui
  * payment tx per the returned requirements, signs, retries with the payload.
  *
  * NOTE (P0 skeleton): tx construction uses `Transaction` from @mysten/sui and
@@ -11,6 +11,17 @@ import {
   encodeHeader, decodeHeader,
 } from "@sui-x402/core";
 import { z } from "zod";
+
+export {
+  discoverCoins,
+  selectCoins,
+  InsufficientBalanceError,
+  MAX_INPUT_COINS,
+  type CoinRef,
+  type OwnedCoin,
+  type CoinSource,
+  type CoinSelection,
+} from "./coins.js";
 
 const RequiredHeader = z.object({
   x402Version: z.literal(2),

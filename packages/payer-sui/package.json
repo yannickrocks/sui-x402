@@ -1,5 +1,5 @@
 {
-  "name": "@sui-x402/payer",
+  "name": "@sui-x402/payer-sui",
   "version": "0.0.1",
   "type": "module",
   "main": "dist/index.js",

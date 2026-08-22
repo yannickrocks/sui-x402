@@ -1,7 +1,7 @@
 # @sui-x402/core
 
 Zod schemas, header codec and reason codes for the [x402 v2](https://github.com/x402-foundation/x402)
-`exact` scheme on Sui. Shared by `@sui-x402/payer`, `@sui-x402/hono`,
+`exact` scheme on Sui. Shared by `@sui-x402/payer-sui`, `@sui-x402/hono`,
 `@sui-x402/express` and `@sui-x402/next`; use it directly when writing your own
 integration.
 

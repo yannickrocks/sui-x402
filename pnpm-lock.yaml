@@ -52,7 +52,7 @@ importers:
         specifier: workspace:*
         version: link:../core
 
-  packages/payer:
+  packages/payer-sui:
     dependencies:
       '@mysten/sui':
         specifier: ^2.17.0
