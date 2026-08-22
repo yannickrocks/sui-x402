@@ -34,6 +34,15 @@ export {
   type PaymentClient,
   type PaymentBuildReason,
 } from "./tx.js";
+export {
+  KeypairSigner,
+  SignerConfigError,
+  ed25519Signer,
+  ed25519SignerFromEnv,
+  ENV_PAYER_SECRET_KEY,
+  type PayerSigner,
+} from "./signer.js";
+import type { PayerSigner } from "./signer.js";
 
 const RequiredHeader = z.object({
   x402Version: z.literal(2),
@@ -41,11 +50,6 @@ const RequiredHeader = z.object({
   resource: z.object({ url: z.string(), description: z.string().optional() }).partial(),
 });
 
-export interface PayerSigner {
-  /** Sign complete tx bytes; return base64 serialized signature. */
-  signTransaction(txBytes: Uint8Array): Promise<string>;
-  address(): string;
-}
 
 export interface PayerOptions {
   signer: PayerSigner;
