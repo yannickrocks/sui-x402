@@ -37,3 +37,18 @@ Live = `https://sui-facilitator.onrender.com`; pinned = submodule commit in
 7. **Settle failure always carries `transaction` and `network` strings**
    (empty when nothing was broadcast); `payer` and `amount` optional.
    Matches the scaffold's `SettleResponse`.
+8. **Timestamp-based transaction expiry is not live.** A `ValidDuring`
+   expiration with `maxTimestamp` set is rejected by the testnet full node at
+   input check (`simulateTransaction` → gRPC `INVALID_ARGUMENT`: "Feature is
+   not supported: Timestamp-based transaction expiration is not yet
+   supported"; observed 2026-08-22, epoch 1199). Epoch-bounded `ValidDuring`
+   (`minEpoch`/`maxEpoch`, including `maxEpoch` alone) and the legacy `Epoch`
+   form are accepted. The payer therefore bounds every payment to the current
+   epoch and treats `maxTimeoutSeconds` as a local deadline only.
+9. **Reason codes on a seller's repeat 402 (our convention).** The spec does
+   not say how a seller reports a rejected payment. Our middleware answers
+   402 with a `PaymentRequired` document whose non-spec `error` field carries
+   the facilitator's reason code (the live demo uses the same field for its
+   "header is required" message), and our payer reads it through
+   `retryHint`. Other sellers may differ; an unreadable reason degrades to
+   `retryHint → "none"`.
