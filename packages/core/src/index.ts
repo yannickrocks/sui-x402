@@ -24,18 +24,26 @@ export const AmountString = z
 
 // Hex address; the facilitator normalizes with normalizeSuiAddress, so short
 // forms are accepted on the wire. Equality checks must normalize first.
-export const SuiAddress = z.string().regex(/^0x[0-9a-fA-F]{1,64}$/, "sui address");
+export const SuiAddress = z
+  .string()
+  .regex(/^0x[0-9a-fA-F]{1,64}$/, "sui address");
 
 // Full coin struct tag `0x<pkg>::<module>::<Name>[<...>]`. A bare symbol like
 // "USDC" is never a valid asset (CLAUDE.md rule 8).
 export const StructTag = z
   .string()
-  .regex(/^0x[0-9a-fA-F]{1,64}::[A-Za-z_][A-Za-z0-9_]*::[A-Za-z_][A-Za-z0-9_]*(<.+>)?$/, "coin struct tag");
+  .regex(
+    /^0x[0-9a-fA-F]{1,64}::[A-Za-z_][A-Za-z0-9_]*::[A-Za-z_][A-Za-z0-9_]*(<.+>)?$/,
+    "coin struct tag"
+  );
 
 // Canonical padded base64 — what @mysten/sui's fromBase64 accepts.
 export const Base64 = z
   .string()
-  .regex(/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/, "base64");
+  .regex(
+    /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/,
+    "base64"
+  );
 
 // Mirrors the reference facilitator's cap on `payload.transaction`.
 export const MAX_TRANSACTION_BASE64_CHARS = 120_000;
@@ -146,7 +154,8 @@ export const ReasonCode = z.enum([
 ]);
 export type ReasonCode = z.infer<typeof ReasonCode>;
 
-export const isReasonCode = (s: string): s is ReasonCode => ReasonCode.safeParse(s).success;
+export const isReasonCode = (s: string): s is ReasonCode =>
+  ReasonCode.safeParse(s).success;
 
 /**
  * What a payer can do about a rejection (PRD §8.11, §8.12):
@@ -182,13 +191,19 @@ export const HEADER_PAYMENT_RESPONSE = "PAYMENT-RESPONSE";
 // rejects headers over 16 KB by default (`--max-http-header-size`).
 export const MAX_HEADER_CHARS = 256 * 1024;
 
-export type HeaderErrorReason = "empty" | "too_large" | "not_base64" | "not_json" | "not_object" | "schema";
+export type HeaderErrorReason =
+  | "empty"
+  | "too_large"
+  | "not_base64"
+  | "not_json"
+  | "not_object"
+  | "schema";
 
 /** Thrown by `decodeHeader`; middleware maps it to HTTP 400. */
 export class HeaderError extends Error {
   constructor(
     readonly reason: HeaderErrorReason,
-    readonly issues?: z.ZodIssue[],
+    readonly issues?: z.ZodIssue[]
   ) {
     super(`x402 header: ${reason}`);
     this.name = "HeaderError";
@@ -200,10 +215,19 @@ export const encodeHeader = (o: unknown): string =>
   Buffer.from(JSON.stringify(o), "utf8").toString("base64");
 
 /**
- * base64 → JSON → schema. Base64 is checked before decoding because
- * `Buffer.from(s, "base64")` silently drops invalid characters.
+ * base64 → JSON → schema, keeping both halves. `value` is the validated
+ * document; `raw` is what `JSON.parse` produced. A relay forwards `raw` so a
+ * payer-signed document reaches the facilitator byte-for-byte — zod strips keys
+ * this version of the schema does not know, so `value` is safe to read and
+ * never safe to forward (PRD §8.9).
+ *
+ * Base64 is checked before decoding because `Buffer.from(s, "base64")` silently
+ * drops invalid characters.
  */
-export const decodeHeader = <T>(s: string, schema: z.ZodType<T>): T => {
+export const decodeHeaderVerbatim = <T>(
+  s: string,
+  schema: z.ZodType<T>
+): { raw: unknown; value: T } => {
   if (s.length === 0) throw new HeaderError("empty");
   if (s.length > MAX_HEADER_CHARS) throw new HeaderError("too_large");
   if (!Base64.safeParse(s).success) throw new HeaderError("not_base64");
@@ -213,8 +237,16 @@ export const decodeHeader = <T>(s: string, schema: z.ZodType<T>): T => {
   } catch {
     throw new HeaderError("not_json");
   }
-  if (json === null || typeof json !== "object" || Array.isArray(json)) throw new HeaderError("not_object");
+  if (json === null || typeof json !== "object" || Array.isArray(json))
+    throw new HeaderError("not_object");
   const r = schema.safeParse(json);
   if (!r.success) throw new HeaderError("schema", r.error.issues);
-  return r.data;
+  return { raw: json, value: r.data };
 };
+
+/** base64 → JSON → schema. */
+export const decodeHeader = <T>(s: string, schema: z.ZodType<T>): T =>
+  decodeHeaderVerbatim(s, schema).value;
+
+// Last: `seller.ts` imports the schemas above, so they must be initialized first.
+export * from "./seller.js";

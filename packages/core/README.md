@@ -63,6 +63,62 @@ retryHint("invalid_transaction_state");    // "rebuild_tx"
 retryHint("insufficient_funds");           // "none"
 ```
 
+## Seller core
+
+`createSeller` is the framework-agnostic seller half: it decides what a 402
+says, when a payment header is unreadable, when the facilitator is unavailable,
+and whether your handler may run at all. `@sui-x402/hono`, `@sui-x402/express`
+and `@sui-x402/next` are thin translations of one framework's request and
+response onto it, so all three behave identically and are held to one shared
+conformance suite (`test/seller-conformance.ts`). Verify, settle and replay
+protection stay where they belong — in the facilitator.
+
+```ts
+import { HEADER_PAYMENT_SIGNATURE, createSeller } from "@sui-x402/core";
+
+const seller = createSeller({
+  payTo: "0x43a5782881f7ae4584fb7a3d9d9b3cd3440ed634a67301de5e45f734505e8e7d",
+  amount: "10000", // 0.01 USDC in atomic units
+  asset: "0xa1ec7fc00a6f40db9693ad1415d0c193ad3906494428cf252621037bd7117e29::usdc::USDC",
+  network: "sui:testnet",
+  facilitator: "https://your-facilitator.example",
+  // mode: "fast" serves the content before settlement completes
+});
+
+// Startup check, not per-request: a facilitator that cannot settle your network
+// is a configuration defect (SellerConfigError), a facilitator that cannot be
+// reached is a FacilitatorError.
+await seller.assertFacilitatorSupports();
+
+async function paywall(request: Request, handler: () => Promise<Response>): Promise<Response> {
+  const decision = await seller.handle({
+    url: request.url, // absolute; it is echoed as resource.url in the 402
+    paymentSignature: request.headers.get(HEADER_PAYMENT_SIGNATURE),
+  });
+  if (decision.kind === "respond") {
+    return new Response(JSON.stringify(decision.body), { status: decision.status, headers: decision.headers });
+  }
+  const response = await handler();
+  for (const [name, value] of Object.entries(decision.headers)) response.headers.set(name, value);
+  void decision.settleAfter?.(); // fast mode only; it never rejects
+  return response;
+}
+```
+
+| Request | Decision |
+|---|---|
+| No `PAYMENT-SIGNATURE` | 402; the terms are the same JSON in the `PAYMENT-REQUIRED` header and the body |
+| Unreadable `PAYMENT-SIGNATURE` | 400 `{ error, reason }`; the facilitator is never called |
+| Facilitator says the payment is invalid | 402 whose `error` carries the facilitator's reason code, which the payer reads through `retryHint` |
+| Facilitator unreachable, slow, 5xx or unreadable | 503 + `Retry-After`; content is never served unpaid |
+| `strict` (default) | `/settle` runs before the handler; the settlement rides back in `PAYMENT-RESPONSE` |
+| `fast` | Handler first, `settleAfter()` after; the outcome goes to `onSettled` / `onSettleFailure` |
+
+The payer-signed document is relayed byte-for-byte: it is validated with
+`PaymentPayload`, then the *raw* JSON — including keys this schema version does
+not know — is what reaches `/verify` and `/settle`. On a 503 the payer resends
+the identical payload and the facilitator dedupes it by transaction digest.
+
 ## API
 
 | Export | What |
@@ -71,6 +127,10 @@ retryHint("insufficient_funds");           // "none"
 | `SuiNetwork`, `AmountString`, `SuiAddress`, `StructTag`, `Base64` | Primitives. `AmountString` is a positive base-10 integer string; `StructTag` rejects bare symbols like `"USDC"` |
 | `HEADER_PAYMENT_REQUIRED`, `HEADER_PAYMENT_SIGNATURE`, `HEADER_PAYMENT_RESPONSE` | Header names |
 | `encodeHeader(obj)` / `decodeHeader(str, schema)` | Compact JSON ⇄ base64. `decodeHeader` throws `HeaderError` with `reason` ∈ `empty \| too_large \| not_base64 \| not_json \| not_object \| schema` |
+| `decodeHeaderVerbatim(str, schema)` | As `decodeHeader`, but returns `{ raw, value }`. Relay `raw` — zod strips unknown keys, and the facilitator judges the bytes the payer signed |
+| `createSeller(options)` → `Seller` | Framework-agnostic seller: `requirements`, `mode`, `paymentRequired(url, error)`, `handle(request)`, `assertFacilitatorSupports()` |
+| `SellerOptions`, `SellerRequest`, `SellerDecision`, `Seller`, `SettleFailure` | The types an adapter translates its framework to and from |
+| `SellerConfigError`, `FacilitatorError` | A configuration defect that must fail at startup, versus no verdict from the facilitator (`kind` ∈ `unreachable \| timeout \| http \| unparseable`, plus `status`) |
 | `MAX_TRANSACTION_BASE64_CHARS` (120 000), `MAX_HEADER_CHARS` (256 KiB) | Size caps mirrored from the reference facilitator |
 | `ReasonCode`, `isReasonCode`, `retryHint` | Spec §9 codes + Sui analogues; `retryHint` maps a code to `refetch_terms \| rebuild_tx \| facilitator \| none` |
 

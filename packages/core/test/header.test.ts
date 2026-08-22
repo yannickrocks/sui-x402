@@ -6,6 +6,7 @@ import {
   PaymentRequired,
   SettleResponse,
   decodeHeader,
+  decodeHeaderVerbatim,
   encodeHeader,
 } from "../src/index.js";
 import { fixture, fixtureText } from "./fixtures.js";
@@ -95,5 +96,47 @@ describe("malformed headers (PRD §8.10) fail with a typed reason, never a raw t
     expect(e).toBeInstanceOf(Error);
     expect(e.name).toBe("HeaderError");
     expect(e.message).toBe("x402 header: empty");
+  });
+});
+
+describe("decodeHeaderVerbatim keeps what the schema strips (PRD §8.9)", () => {
+  const withUnknownKeys = {
+    ...payload,
+    accepted: { ...requirements, extra: { x: "payer-supplied" } },
+    extensions: { trace: "abc" },
+    note: "unknown to this schema version",
+  };
+
+  it("returns the raw document beside the validated one", () => {
+    const { raw, value } = decodeHeaderVerbatim(encodeHeader(withUnknownKeys), PaymentPayload);
+
+    expect(raw).toEqual(withUnknownKeys);
+    expect(value).toEqual({ ...withUnknownKeys, note: undefined });
+    expect(value).not.toHaveProperty("note");
+  });
+
+  it("relaying raw is byte-identical to the header the payer sent", () => {
+    const header = encodeHeader(withUnknownKeys);
+    expect(encodeHeader(decodeHeaderVerbatim(header, PaymentPayload).raw)).toBe(header);
+  });
+
+  it("decodeHeader is the validated half of it", () => {
+    const header = encodeHeader(required);
+    expect(decodeHeader(header, PaymentRequired)).toEqual(decodeHeaderVerbatim(header, PaymentRequired).value);
+  });
+
+  it.each<[string, string, string]>([
+    ["empty string", "", "empty"],
+    ["non-base64 characters", "not base64!", "not_base64"],
+    ["base64 of non-JSON", Buffer.from("hello").toString("base64"), "not_json"],
+    ["JSON array", encodeHeader([required]), "not_object"],
+    ["valid JSON, wrong schema", encodeHeader({ hello: "world" }), "schema"],
+  ])("fails exactly like decodeHeader on %s", (_name, header, reason) => {
+    expect(reasonOf(() => decodeHeaderVerbatim(header, PaymentRequired))).toBe(reason);
+    expect(reasonOf(() => decodeHeader(header, PaymentRequired))).toBe(reason);
+  });
+
+  it("rejects oversize headers before decoding them", () => {
+    expect(reasonOf(() => decodeHeaderVerbatim("A".repeat(MAX_HEADER_CHARS + 4), PaymentRequired))).toBe("too_large");
   });
 });
