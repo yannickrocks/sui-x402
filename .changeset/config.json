@@ -1,0 +1,23 @@
+{
+  "$schema": "https://unpkg.com/@changesets/config@3.0.0/schema.json",
+  "changelog": "@changesets/cli/changelog",
+  "commit": false,
+  "fixed": [],
+  "linked": [
+    [
+      "@sui-x402/core",
+      "@sui-x402/payer-sui",
+      "@sui-x402/hono",
+      "@sui-x402/express",
+      "@sui-x402/next"
+    ]
+  ],
+  "access": "public",
+  "baseBranch": "master",
+  "updateInternalDependencies": "patch",
+  "ignore": [
+    "example-hono-server",
+    "example-express-server",
+    "example-next-paywall"
+  ]
+}
