@@ -1,0 +1,3 @@
+[submodule "deploy/facilitator/upstream"]
+	path = deploy/facilitator/upstream
+	url = https://github.com/DrVelvetFog/sui-x402-facilitator.git
