@@ -1,0 +1,87 @@
+{
+  "_source": "https://sui-facilitator.onrender.com",
+  "_captured": "2026-08-22",
+  "_note": "Semantic failures are HTTP 200 with isValid:false / success:false; 400 only for unparseable JSON. No funds moved: every transaction is garbage bytes.",
+  "cases": {
+    "verify": {
+      "unparseable_body": {
+        "request": "not json",
+        "http": 400,
+        "body": {
+          "isValid": false,
+          "invalidReason": "invalid_payload"
+        }
+      },
+      "empty_object": {
+        "request": {},
+        "http": 200,
+        "body": {
+          "isValid": false,
+          "invalidReason": "invalid_x402_version"
+        }
+      },
+      "x402Version_1": {
+        "request": "x402Version 1 in envelope and payload",
+        "http": 200,
+        "body": {
+          "isValid": false,
+          "invalidReason": "invalid_x402_version"
+        }
+      },
+      "scheme_upto": {
+        "request": "paymentRequirements.scheme = upto",
+        "http": 200,
+        "body": {
+          "isValid": false,
+          "invalidReason": "unsupported_scheme"
+        }
+      },
+      "network_devnet": {
+        "request": "paymentRequirements.network = sui:devnet",
+        "http": 200,
+        "body": {
+          "isValid": false,
+          "invalidReason": "invalid_network"
+        }
+      },
+      "accepted_ne_requirements": {
+        "request": "paymentPayload.accepted.amount 9999 vs requirements 10000",
+        "http": 200,
+        "body": {
+          "isValid": false,
+          "invalidReason": "invalid_payment_requirements"
+        }
+      },
+      "garbage_tx_bytes": {
+        "request": "structurally valid; payload.transaction = AA== , signature = AA==",
+        "http": 200,
+        "body": {
+          "isValid": false,
+          "invalidReason": "invalid_transaction_state"
+        }
+      }
+    },
+    "settle": {
+      "unparseable_body": {
+        "request": "nope",
+        "http": 400,
+        "body": {
+          "success": false,
+          "errorReason": "invalid_payload",
+          "transaction": "",
+          "network": ""
+        }
+      },
+      "garbage_tx_bytes": {
+        "request": "same body as verify.garbage_tx_bytes",
+        "http": 200,
+        "body": {
+          "success": false,
+          "errorReason": "invalid_transaction_state",
+          "transaction": "",
+          "network": "sui:testnet"
+        }
+      }
+    }
+  }
+}

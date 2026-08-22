@@ -1,0 +1,22 @@
+{
+  "ok": true,
+  "facilitator": {
+    "service": "sui-x402-facilitator",
+    "networks": [
+      "sui:testnet",
+      "sui:mainnet"
+    ],
+    "custody": "none \u2014 relays the payer's own signed transaction",
+    "fees": "none",
+    "terms": "https://github.com/DrVelvetFog/sui-x402-facilitator/blob/main/TERMS.md"
+  },
+  "demo": {
+    "service": "sui-signal-api",
+    "paid": {
+      "GET /signal/whales": "$0.01 per call (x402 exact, sui:testnet, 10000 atomic USDC)"
+    },
+    "freeDoor": "humans holding a Proof of Real credential read free \u2014 POR-PROOF header",
+    "payTo": "0x43a5782881f7ae4584fb7a3d9d9b3cd3440ed634a67301de5e45f734505e8e7d"
+  },
+  "uptimeSeconds": 0
+}
