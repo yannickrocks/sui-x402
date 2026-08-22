@@ -5,7 +5,15 @@
     "typecheck": { "dependsOn": ["^build"] },
     "test": {
       "dependsOn": ["^build"],
-      "env": ["E2E", "PAYER_SECRET_KEY", "SUI_GRPC_URL"]
+      "env": [
+        "E2E",
+        "PAYER_SECRET_KEY",
+        "SUI_GRPC_URL",
+        "FACILITATOR_URL",
+        "PAY_TO",
+        "ASSET",
+        "AMOUNT"
+      ]
     }
   }
 }

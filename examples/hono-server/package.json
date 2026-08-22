@@ -1,0 +1,20 @@
+{
+  "name": "example-hono-server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "typecheck": "tsc --noEmit -p .",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@sui-x402/hono": "workspace:*",
+    "@sui-x402/core": "workspace:*",
+    "@hono/node-server": "^1.13.0",
+    "hono": "^4.6.0"
+  },
+  "devDependencies": {
+    "@sui-x402/payer-sui": "workspace:*",
+    "@mysten/sui": "^2.17.0"
+  }
+}
