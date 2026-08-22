@@ -1,0 +1,6 @@
+upstream/node_modules
+upstream/.git
+upstream/.secrets
+upstream/.env*
+upstream/conformance
+upstream/scripts

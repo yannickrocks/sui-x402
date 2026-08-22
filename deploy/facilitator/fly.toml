@@ -1,0 +1,35 @@
+# fly deploy -c deploy/facilitator/fly.toml  (run from deploy/facilitator so the
+# Docker build context contains ./upstream). Rename `app` before first launch.
+app = "sui-x402-facilitator"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "4402"
+  RPC_TIMEOUT_MS = "20000"
+  RATE_LIMIT = "120"
+  # Second entry must be a trusted gRPC endpoint — see .env.example.
+  SUI_TESTNET_RPC = "https://fullnode.testnet.sui.io:443,https://REPLACE-WITH-SECOND-TRUSTED-GRPC-ENDPOINT:443"
+
+[http_service]
+  internal_port = 4402
+  force_https = true
+  # Settle idempotency (in-flight promise cache) and rate-limit buckets are
+  # in-process. Keep exactly one always-on machine; never scale horizontally
+  # without a shared store.
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    interval = "15s"
+    timeout = "5s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/health"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
