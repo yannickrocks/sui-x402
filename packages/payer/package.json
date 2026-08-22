@@ -4,6 +4,14 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "scripts": { "build": "tsc -p .", "typecheck": "tsc --noEmit -p ." },
-  "dependencies": { "@sui-x402/core": "workspace:*", "zod": "^3.23.0", "@mysten/sui": "^2.17.0" }
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit -p .",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@sui-x402/core": "workspace:*",
+    "zod": "^3.23.0",
+    "@mysten/sui": "^2.17.0"
+  }
 }

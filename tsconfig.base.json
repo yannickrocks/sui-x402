@@ -6,6 +6,9 @@
     "strict": true,
     "declaration": true,
     "skipLibCheck": true,
-    "outDir": "dist"
+    "types": [
+      "node"
+    ],
+    "resolveJsonModule": true
   }
 }

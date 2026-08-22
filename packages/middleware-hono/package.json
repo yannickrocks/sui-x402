@@ -4,6 +4,13 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "scripts": { "build": "tsc -p .", "typecheck": "tsc --noEmit -p ." },
-  "dependencies": { "@sui-x402/core": "workspace:*", "hono": "^4.6.0" }
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit -p .",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@sui-x402/core": "workspace:*",
+    "hono": "^4.6.0"
+  }
 }
