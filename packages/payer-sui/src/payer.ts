@@ -7,13 +7,13 @@
  * what the server sent back, and nothing is signed before the offer passes
  * selection and the built transaction passes its own self-check.
  */
-import { TransactionError } from "@mysten/sui/client";
 import { toBase64 } from "@mysten/sui/utils";
 import {
   HEADER_PAYMENT_REQUIRED,
   HEADER_PAYMENT_RESPONSE,
   HEADER_PAYMENT_SIGNATURE,
   HeaderError,
+  MAX_HEADER_CHARS,
   PaymentPayload,
   PaymentRequired,
   SettleResponse,
@@ -37,10 +37,12 @@ export interface SuiX402PayerOptions {
   fetch?: typeof globalThis.fetch;
   /** Defaults to `Date.now`. */
   now?: () => number;
-  /** Backoff timer between resends of the same payload; defaults to `setTimeout`. */
+  /** Backoff timer; defaults to `setTimeout`. */
   sleep?: (ms: number) => Promise<void>;
   gasHeadroomPercent?: number;
   maxGasBudget?: bigint;
+  /** Genesis digests per network, extending the pinned `CHAIN_IDENTIFIERS`. */
+  chainIdentifiers?: Readonly<Record<string, string>>;
 }
 
 export interface PaymentReceipt {
@@ -53,6 +55,12 @@ export interface PaymentReceipt {
   /** The offer that was paid, exactly as the seller sent it. */
   accepted: PaymentRequirements;
   settle: SettleResponse;
+}
+
+/** The last payment this call signed and sent. */
+export interface SentPayment {
+  digest: string;
+  accepted: PaymentRequirements;
 }
 
 /** The seller answered 402 again and the payer will not pay a second time. */
@@ -77,22 +85,50 @@ const MAX_REBUILDS = 1;
 const MAX_RESENDS = 2;
 const DEFAULT_BACKOFF_MS = [1_000, 3_000];
 const MAX_RETRY_AFTER_MS = 30_000;
+/** Gap between the two gas-coin reads that must agree before a second payment is signed. */
+const RECHECK_MS = 1_500;
 
-/**
- * Terms of a 402: the `PAYMENT-REQUIRED` header, or the body carrying the same
- * JSON (spec-notes #1). A header that is present but unreadable is a seller bug
- * worth surfacing; a 402 with no terms at all is simply not payable.
- */
-const readTerms = async (response: Response): Promise<PaymentRequired | null> => {
-  const header = response.headers.get(HEADER_PAYMENT_REQUIRED);
-  if (header !== null) return decodeHeader(header, PaymentRequired);
-  let body: unknown;
+/** The 402 body, parsed as JSON, unless it is larger than a header may be. */
+const readBoundedJson = async (response: Response): Promise<unknown> => {
+  if (Number(response.headers.get("content-length") ?? "0") > MAX_HEADER_CHARS) return null;
+  const reader = response.clone().body?.getReader();
+  if (reader === undefined) return null;
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > MAX_HEADER_CHARS) {
+      // Not cancel(): on a tee'd body that never resolves under undici.
+      reader.releaseLock();
+      return null;
+    }
+    chunks.push(value);
+  }
   try {
-    body = await response.clone().json();
+    return JSON.parse(Buffer.concat(chunks).toString("utf8"));
   } catch {
     return null;
   }
-  const parsed = PaymentRequired.safeParse(body);
+};
+
+/**
+ * Terms of a 402: the `PAYMENT-REQUIRED` header, or the body carrying the same
+ * JSON (spec-notes #1). Before anything is paid, an unreadable header is a
+ * seller bug worth surfacing; after a payment it must not hide the response.
+ */
+const readTerms = async (response: Response, surfaceHeaderErrors: boolean): Promise<PaymentRequired | null> => {
+  const header = response.headers.get(HEADER_PAYMENT_REQUIRED);
+  if (header !== null) {
+    try {
+      return decodeHeader(header, PaymentRequired);
+    } catch (e) {
+      if (surfaceHeaderErrors || !(e instanceof HeaderError)) throw e;
+      return null;
+    }
+  }
+  const parsed = PaymentRequired.safeParse(await readBoundedJson(response));
   return parsed.success ? parsed.data : null;
 };
 
@@ -118,11 +154,12 @@ interface Attempt {
  * payment, and replays the request with the `PAYMENT-SIGNATURE` header.
  *
  * Retry contract: at most one extra payment per call, and only when the seller
- * says the terms drifted (§8.11) or the transaction went stale (§8.12, after
- * checking on chain that the first one never executed). A facilitator outage
- * (502/503/504, or a 402 carrying `unexpected_*_error`) resends the *same*
- * signed payload after `Retry-After`, which the facilitator dedupes by digest
- * (§8.7, §8.9). Every other answer is returned to the caller as-is.
+ * says the terms drifted (§8.11) or the transaction went stale (§8.12) — and
+ * only after the first payment's gas coin is seen unmoved on chain, twice,
+ * which proves that payment never executed. A facilitator outage (502/503/504,
+ * or a 402 carrying `unexpected_*_error`) resends the *same* signed payload
+ * after `Retry-After`, which the facilitator dedupes by digest (§8.7, §8.9).
+ * Every other answer is returned to the caller as-is.
  */
 export class SuiX402Payer {
   readonly #client: PaymentClient;
@@ -133,6 +170,7 @@ export class SuiX402Payer {
   readonly #sleep: (ms: number) => Promise<void>;
   readonly #gasHeadroomPercent: number | undefined;
   readonly #maxGasBudget: bigint | undefined;
+  readonly #chainIdentifiers: Readonly<Record<string, string>> | undefined;
 
   constructor(options: SuiX402PayerOptions) {
     this.#client = options.client;
@@ -144,6 +182,7 @@ export class SuiX402Payer {
     this.#sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
     this.#gasHeadroomPercent = options.gasHeadroomPercent;
     this.#maxGasBudget = options.maxGasBudget;
+    this.#chainIdentifiers = options.chainIdentifiers;
   }
 
   /** Pays a 402 and returns the seller's final response. */
@@ -152,63 +191,62 @@ export class SuiX402Payer {
   }
 
   /**
-   * As `fetch`, plus the settlement the seller reported in `PAYMENT-RESPONSE`.
-   * The receipt is null when no payment was made or the header is absent or
-   * unreadable — a seller bug never hides a response that was paid for.
+   * As `fetch`, plus what was paid (`sent`) and the settlement the seller
+   * reported in `PAYMENT-RESPONSE` (`receipt`). The receipt is null when nothing
+   * was paid, the header is absent or unreadable, or a successful settlement
+   * names a digest other than the one this payer signed.
    */
   async fetchWithReceipt(
     input: string | URL,
     init?: RequestInit,
-  ): Promise<{ response: Response; receipt: PaymentReceipt | null }> {
-    const { response, requirement } = await this.#pay(input, init);
+  ): Promise<{ response: Response; receipt: PaymentReceipt | null; sent: SentPayment | null }> {
+    const { response, sent } = await this.#pay(input, init);
     const header = response.headers.get(HEADER_PAYMENT_RESPONSE);
-    if (requirement === null || header === null) return { response, receipt: null };
+    if (sent === null || header === null) return { response, receipt: null, sent };
     let settle: SettleResponse;
     try {
       settle = decodeHeader(header, SettleResponse);
     } catch (e) {
-      if (e instanceof HeaderError) return { response, receipt: null };
+      if (e instanceof HeaderError) return { response, receipt: null, sent };
       throw e;
     }
+    if (settle.success && settle.transaction !== sent.digest) return { response, receipt: null, sent };
     return {
       response,
+      sent,
       receipt: {
         digest: settle.transaction,
         payer: settle.payer ?? null,
         amount: settle.amount ?? null,
         network: settle.network,
-        accepted: requirement,
+        accepted: sent.accepted,
         settle,
       },
     };
   }
 
-  async #pay(
-    input: string | URL,
-    init: RequestInit | undefined,
-  ): Promise<{ response: Response; requirement: PaymentRequirements | null }> {
+  async #pay(input: string | URL, init: RequestInit | undefined): Promise<{ response: Response; sent: SentPayment | null }> {
     const first = await this.#fetch(input, init);
-    if (first.status !== 402) return { response: first, requirement: null };
-    let terms = await readTerms(first);
-    if (terms === null) return { response: first, requirement: null };
+    if (first.status !== 402) return { response: first, sent: null };
+    let terms = await readTerms(first, true);
+    if (terms === null) return { response: first, sent: null };
 
     let requirement = selectRequirement(terms.accepts, this.#select);
     let rebuilds = 0;
     for (;;) {
       const { built, header } = await this.#sign(requirement, terms.resource);
+      const sent = { digest: built.digest, accepted: requirement };
       const { response, terms: next } = await this.#sendWithBackoff(input, init, header);
-      if (response.status !== 402) return { response, requirement };
+      if (response.status !== 402) return { response, sent };
 
       const reason = next?.error ?? "";
       const hint = retryHint(reason);
-      if (rebuilds === MAX_REBUILDS) throw new PaymentRejectedError(reason, hint, response);
+      const retryable = (hint === "refetch_terms" && next !== null) || hint === "rebuild_tx";
+      if (rebuilds === MAX_REBUILDS || !retryable) throw new PaymentRejectedError(reason, hint, response);
+      await this.#assertNotExecuted(built, reason, hint, response);
       if (hint === "refetch_terms" && next !== null) {
         terms = next;
         requirement = selectRequirement(terms.accepts, this.#select);
-      } else if (hint === "rebuild_tx") {
-        await this.#assertNotExecuted(built.digest, reason, response);
-      } else {
-        throw new PaymentRejectedError(reason, hint, response);
       }
       rebuilds += 1;
     }
@@ -227,8 +265,7 @@ export class SuiX402Payer {
       accepted: requirement,
       payload: { transaction: toBase64(built.bytes), signature },
     };
-    // Validated, not rewritten: the header carries the seller's own `accepted`
-    // object, including any field this version of the schema does not know.
+    // Validated, not rewritten: the header carries the seller's own `accepted` object.
     PaymentPayload.parse(payload);
     return { built, header: encodeHeader(payload) };
   }
@@ -240,6 +277,7 @@ export class SuiX402Payer {
       requirements: requirement,
       gasHeadroomPercent: this.#gasHeadroomPercent,
       maxGasBudget: this.#maxGasBudget,
+      chainIdentifiers: this.#chainIdentifiers,
     });
   }
 
@@ -259,18 +297,40 @@ export class SuiX402Payer {
     const headers = new Headers(init?.headers);
     headers.set(HEADER_PAYMENT_SIGNATURE, header);
     const response = await this.#fetch(input, { ...init, headers });
-    return { response, terms: response.status === 402 ? await readTerms(response) : null };
+    return { response, terms: response.status === 402 ? await readTerms(response, false) : null };
   }
 
-  /** A rebuild is only safe when the rejected payment never executed; anything less than proof of absence aborts. */
-  async #assertNotExecuted(digest: string, reason: string, response: Response): Promise<void> {
-    try {
-      await this.#client.getTransaction({ digest });
-    } catch (e) {
-      if (e instanceof TransactionError && e.reason === "notFound") return;
-      const detail = e instanceof Error ? e.message : String(e);
-      throw new PaymentRejectedError(reason, "rebuild_tx", response, `could not confirm ${digest} is absent from chain: ${detail}`);
+  /**
+   * A second payment is signed only once the first one provably never
+   * executed: its gas coin still sits at the signed version, on two reads
+   * spaced apart. Transaction lookups cannot give that proof — a full node
+   * answers "not found" for pruned history too — and a moved coin, whatever
+   * moved it, ends the call.
+   */
+  async #assertNotExecuted(built: BuiltPayment, reason: string, hint: RetryHint, response: Response): Promise<void> {
+    const { objectId, version } = built.gasCoin;
+    for (let pass = 0; pass < 2; pass++) {
+      if (pass > 0) await this.#sleep(RECHECK_MS);
+      let current: string;
+      try {
+        current = (await this.#client.getObject({ objectId })).object.version;
+      } catch (e) {
+        const detail = e instanceof Error ? e.message : String(e);
+        throw new PaymentRejectedError(
+          reason,
+          hint,
+          response,
+          `could not confirm payment ${built.digest} never executed (gas coin ${objectId}): ${detail}`,
+        );
+      }
+      if (current !== version) {
+        throw new PaymentRejectedError(
+          reason,
+          "none",
+          response,
+          `payment ${built.digest} may have executed: gas coin ${objectId} moved from version ${version} to ${current}`,
+        );
+      }
     }
-    throw new PaymentRejectedError(reason, "none", response, `transaction ${digest} is already on chain`);
   }
 }

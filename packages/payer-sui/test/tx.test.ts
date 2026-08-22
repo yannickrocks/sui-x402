@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { TransactionError } from "@mysten/sui/client";
 import { SuiGrpcClient } from "@mysten/sui/grpc";
 import { bcs } from "@mysten/sui/bcs";
 import { Transaction, TransactionDataBuilder } from "@mysten/sui/transactions";
@@ -11,6 +10,7 @@ import {
   type GasCostSummary,
   type PaymentClient,
   type SimulateInput,
+  CHAIN_IDENTIFIERS,
   DEFAULT_MAX_GAS_BUDGET,
   PaymentBuildError,
   buildPaymentTransaction,
@@ -51,10 +51,10 @@ const credit = (amount: bigint, asset = USDC, address = PAY_TO): BalanceChange[]
   { coinType: asset, address, amount: amount.toString() },
 ];
 
-/** A chain identifier is the genesis checkpoint digest: 32 bytes base58, or BCS rejects it. */
-const CHAIN_ID = toBase58(new Uint8Array(32).fill(9));
+/** The pinned testnet genesis digest; a mock answering anything else is "another chain". */
+const CHAIN_ID = CHAIN_IDENTIFIERS["sui:testnet"] ?? "";
 const EPOCH = "1199";
-const NO_CALLS = { listCoins: 0, getCurrentSystemState: 0, getChainIdentifier: 0, getTransaction: 0, simulateTransaction: 0 };
+const NO_CALLS = { listCoins: 0, getCurrentSystemState: 0, getChainIdentifier: 0, getObject: 0, simulateTransaction: 0 };
 
 interface MockOptions {
   sui: OwnedCoin[];
@@ -80,9 +80,11 @@ function mockClient(o: MockOptions) {
       calls.getCurrentSystemState++;
       return { systemState: { epoch: EPOCH, referenceGasPrice: o.gasPrice ?? "1000" } };
     },
-    async getTransaction({ digest }) {
-      calls.getTransaction++;
-      throw new TransactionError("notFound", digest);
+    async getObject({ objectId }) {
+      calls.getObject++;
+      const found = [...o.sui, ...(o.asset ?? [])].find((c) => c.objectId === objectId);
+      if (found === undefined) throw new Error(`object ${objectId} not found`);
+      return { object: { version: found.version } };
     },
     async getChainIdentifier() {
       calls.getChainIdentifier++;
@@ -198,7 +200,7 @@ describe("buildPaymentTransaction — non-SUI asset", () => {
     expect(data.sender).toBe(SENDER);
     expect(String(data.gasData.price)).toBe("1000");
     expect(String(data.gasData.budget)).toBe(EXPECTED_BUDGET.toString());
-    expect(data.gasData.payment?.map((p) => p.objectId)).toEqual([sui[0]?.objectId, sui[1]?.objectId]);
+    expect(data.gasData.payment?.map((p) => p.objectId)).toEqual([sui[0]?.objectId, sui[1]?.objectId, sui[2]?.objectId]);
     expect(data.commands.map((c) => c.$kind)).toEqual(["SplitCoins", "TransferObjects"]);
 
     const split = data.commands[0]?.SplitCoins;
@@ -214,32 +216,42 @@ describe("buildPaymentTransaction — non-SUI asset", () => {
     expect(simulations).toHaveLength(1);
   });
 
-  it("estimates gas on the smallest coin set that can back a simulation", async () => {
+  it("simulates and signs with the same gas coins, covering up to maxGasBudget of gas", async () => {
     const sui = [coin(3_000_000n, "0x2::sui::SUI"), coin(100n, "0x2::sui::SUI"), coin(2_000_000n, "0x2::sui::SUI")];
     const { client, simulations } = mockClient({ sui, asset: [coin(50_000n, USDC)] });
     const built = await buildPaymentTransaction({ client, sender: SENDER, requirements: req() });
     const sim = decode(at(simulations, 0));
-    expect(sim.gasData.payment?.map((p) => p.objectId)).toEqual([sui[0]?.objectId]);
-    expect(String(sim.gasData.budget)).toBe("3000000");
-    expect(decode(built.bytes).gasData.payment?.map((p) => p.objectId)).toEqual([sui[0]?.objectId, sui[2]?.objectId]);
+    const signed = decode(built.bytes);
+    expect(sim.gasData.payment).toEqual(signed.gasData.payment);
+    expect(sim.gasData.payment?.map((p) => p.objectId)).toEqual([sui[0]?.objectId, sui[2]?.objectId, sui[1]?.objectId]);
+    expect(String(sim.gasData.budget)).toBe("5000100");
+    expect(String(signed.gasData.budget)).toBe(EXPECTED_BUDGET.toString());
+    expect(built.gasCoin).toEqual({ objectId: sui[0]?.objectId, version: sui[0]?.version, digest: sui[0]?.digest });
   });
 
-  it("only ever signs with a superset of the simulated gas coins", async () => {
-    const sui = Array.from({ length: 4 }, () => coin(1_500_000n, "0x2::sui::SUI"));
+  it("stops adding gas coins once they back maxGasBudget", async () => {
+    const sui = [coin(1_500_000_000n, "0x2::sui::SUI"), coin(2_000_000n, "0x2::sui::SUI")];
+    const { client } = mockClient({ sui, asset: [coin(50_000n, USDC)] });
+    const built = await buildPaymentTransaction({ client, sender: SENDER, requirements: req() });
+    expect(decode(built.bytes).gasData.payment?.map((p) => p.objectId)).toEqual([sui[0]?.objectId]);
+  });
+
+  it("covers a real gas cost above the largest coin by pooling fragments (review finding)", async () => {
+    const sui = Array.from({ length: 10 }, () => coin(1_500_000n, "0x2::sui::SUI"));
     const { client, simulations } = mockClient({ sui, asset: [coin(50_000n, USDC)] });
     const built = await buildPaymentTransaction({ client, sender: SENDER, requirements: req() });
-    const simulatedGas = decode(at(simulations, 0)).gasData.payment?.map((p) => p.objectId) ?? [];
-    const signedGas = decode(built.bytes).gasData.payment?.map((p) => p.objectId) ?? [];
-    expect(simulatedGas).toHaveLength(1);
-    expect(signedGas).toHaveLength(3);
-    expect(signedGas).toEqual(expect.arrayContaining(simulatedGas));
+    expect(String(decode(at(simulations, 0)).gasData.budget)).toBe("15000000");
+    expect(decode(built.bytes).gasData.payment).toHaveLength(10);
+    expect(built.gasBudget).toBe(EXPECTED_BUDGET);
   });
 
-  it("caps the provisional budget at the protocol maximum", async () => {
-    const sui = [coin(80_000_000_000n, "0x2::sui::SUI")];
-    const { client, simulations } = mockClient({ sui, asset: [coin(50_000n, USDC)] });
-    await buildPaymentTransaction({ client, sender: SENDER, requirements: req() });
-    expect(String(decode(at(simulations, 0)).gasData.budget)).toBe("50000000000");
+  it("probes with the whole selected gas balance, capped at the protocol maximum", async () => {
+    const big = mockClient({ sui: [coin(80_000_000_000n, "0x2::sui::SUI")], asset: [coin(50_000n, USDC)] });
+    await buildPaymentTransaction({ client: big.client, sender: SENDER, requirements: req() });
+    expect(String(decode(at(big.simulations, 0)).gasData.budget)).toBe("80000000000");
+    const whale = mockClient({ sui: [coin(60_000_000_000_000n, "0x2::sui::SUI")], asset: [coin(50_000n, USDC)] });
+    await buildPaymentTransaction({ client: whale.client, sender: SENDER, requirements: req() });
+    expect(String(decode(at(whale.simulations, 0)).gasData.budget)).toBe("50000000000000");
   });
 
   it("merges fragmented coins into the largest before splitting", async () => {
@@ -356,13 +368,14 @@ describe("buildPaymentTransaction — SUI asset", () => {
     expect(data.gasData.payment?.map((p) => p.objectId)).toEqual(sui.map((c) => c.objectId));
     expect(String(data.gasData.budget)).toBe(EXPECTED_BUDGET.toString());
     expect(built.asset).toBe(SUI_TYPE_ARG);
-    expect(String(decode(at(simulations, 0)).gasData.budget)).toBe("2000000");
+    expect(String(decode(at(simulations, 0)).gasData.budget)).toBe("4500000");
   });
 
-  it("uses only the coins needed for amount plus budget", async () => {
+  it("uses only the coins needed for amount plus maxGasBudget", async () => {
     const sui = [coin(6_000_000n, "0x2::sui::SUI"), coin(2_500_000n, "0x2::sui::SUI")];
     const { client } = mockClient({ sui, balanceChanges: credit(1_000_000n, SUI_TYPE_ARG) });
-    const data = decode((await buildPaymentTransaction({ client, sender: SENDER, requirements: suiReq })).bytes);
+    const built = await buildPaymentTransaction({ client, sender: SENDER, requirements: suiReq, maxGasBudget: 4_200_000n });
+    const data = decode(built.bytes);
     expect(data.gasData.payment?.map((p) => p.objectId)).toEqual([sui[0]?.objectId]);
   });
 
@@ -385,26 +398,25 @@ describe("buildPaymentTransaction — SUI asset", () => {
 describe("buildPaymentTransaction — expiration (PRD §8.12)", () => {
   const wallet = (): MockOptions => ({ sui: [coin(10_000_000n, "0x2::sui::SUI")], asset: [coin(50_000n, USDC)] });
 
-  it("bounds every payment to the current epoch in the bytes the node dry-runs", async () => {
+  it("bounds every payment to the next epoch in the bytes the node dry-runs", async () => {
     const { client, simulations, calls } = mockClient(wallet());
     const built = await buildPaymentTransaction({ client, sender: SENDER, requirements: req() });
     const v = validDuring(decode(at(simulations, 0)));
-    expect(v.maxEpoch).toBe(EPOCH);
+    expect(v.maxEpoch).toBe(String(Number(EPOCH) + 1));
     expect(v.chain).toBe(CHAIN_ID);
     expect([v.minEpoch, v.minTimestamp, v.maxTimestamp]).toEqual([null, null, null]);
-    expect(built.expiresAfterEpoch).toBe(1199n);
+    expect(built.expiresAfterEpoch).toBe(1200n);
     expect(calls.getChainIdentifier).toBe(1);
     expect(calls.getCurrentSystemState).toBe(1);
   });
 
   it("carries the identical expiration into the final bytes handed to the signer", async () => {
-    const chainIdentifier = toBase58(new Uint8Array(32).fill(3));
-    const { client, simulations } = mockClient({ ...wallet(), chainIdentifier });
+    const { client, simulations } = mockClient(wallet());
     const built = await buildPaymentTransaction({ client, sender: SENDER, requirements: req() });
     const final = validDuring(decode(built.bytes));
     const simulated = validDuring(decode(at(simulations, 0)));
-    expect(final.chain).toBe(chainIdentifier);
-    expect(final.maxEpoch).toBe(EPOCH);
+    expect(final.chain).toBe(CHAIN_ID);
+    expect(final.maxEpoch).toBe(String(Number(EPOCH) + 1));
     expect(final.nonce).toBe(simulated.nonce);
   });
 
@@ -426,5 +438,40 @@ describe("buildPaymentTransaction — expiration (PRD §8.12)", () => {
     const [a, b] = [await build(), await build()];
     expect(a.digest).not.toBe(b.digest);
     expect(validDuring(decode(a.bytes)).nonce).not.toBe(validDuring(decode(b.bytes)).nonce);
+  });
+});
+
+describe("buildPaymentTransaction — chain identity (PRD §8.15)", () => {
+  const wallet = (): MockOptions => ({ sui: [coin(10_000_000n, "0x2::sui::SUI")], asset: [coin(50_000n, USDC)] });
+  const otherChain = toBase58(new Uint8Array(32).fill(3));
+
+  it("refuses to build when the client is on a different chain than the offer names", async () => {
+    const { client, calls } = mockClient({ ...wallet(), chainIdentifier: otherChain });
+    const err = await rejectsWith(buildPaymentTransaction({ client, sender: SENDER, requirements: req() }), PaymentBuildError);
+    expect(err.reason).toBe("network_mismatch");
+    expect(err.message).toContain(otherChain);
+    expect(calls.simulateTransaction).toBe(0);
+  });
+
+  it("refuses a network with no pinned chain identifier, mainnet included", async () => {
+    const { client, calls } = mockClient(wallet());
+    const err = await rejectsWith(
+      buildPaymentTransaction({ client, sender: SENDER, requirements: req({ network: "sui:mainnet" }) }),
+      PaymentBuildError,
+    );
+    expect(err.reason).toBe("network_mismatch");
+    expect(err.message).toContain("pinned");
+    expect(calls.simulateTransaction).toBe(0);
+  });
+
+  it("accepts a caller-supplied chain identifier for that network", async () => {
+    const { client } = mockClient({ ...wallet(), chainIdentifier: otherChain });
+    const built = await buildPaymentTransaction({
+      client,
+      sender: SENDER,
+      requirements: req({ network: "sui:mainnet" }),
+      chainIdentifiers: { "sui:mainnet": otherChain },
+    });
+    expect(validDuring(decode(built.bytes)).chain).toBe(otherChain);
   });
 });

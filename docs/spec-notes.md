@@ -52,3 +52,13 @@ Live = `https://sui-facilitator.onrender.com`; pinned = submodule commit in
    "header is required" message), and our payer reads it through
    `retryHint`. Other sellers may differ; an unreadable reason degrades to
    `retryHint → "none"`.
+10. **`getTransaction` "not found" is not proof of non-execution.** The public
+    testnet full node answers `NOT_FOUND` for transactions that provably
+    executed but fell out of its retention (observed 2026-08-22 for the
+    `previousTransaction` digests of live coin objects). Upstream's own
+    `rpc.ts` comment says the same. Any "did my payment land?" check must be
+    a positive one — the payer reads the version of the gas coin it signed.
+11. **Live testnet protocol limits (2026-08-22):** `max_tx_gas` =
+    50,000,000,000,000 MIST (50,000 SUI), `max_gas_price` = 50 SUI,
+    `max_gas_payment_objects` = 256, `max_input_objects` = 2048. The payer
+    caps gas inputs at 128.

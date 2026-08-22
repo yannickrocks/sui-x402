@@ -1,5 +1,5 @@
 /**
- * Payment transaction construction (PRD §8.2, §8.12, §8.17 seam).
+ * Payment transaction construction (PRD §8.2, §8.12, §8.15, §8.17 seam).
  *
  * Everything that decides what leaves the payer's wallet lives here:
  * coin → merge → split → transfer, gas coins, gas budget, expiration. The
@@ -10,7 +10,16 @@
 import { Transaction, TransactionDataBuilder } from "@mysten/sui/transactions";
 import { SUI_TYPE_ARG, normalizeStructTag, normalizeSuiAddress } from "@mysten/sui/utils";
 import type { PaymentRequirements } from "@sui-x402/core";
-import { type CoinRef, type CoinSource, type OwnedCoin, discoverCoins, selectCoins } from "./coins.js";
+import {
+  type CoinRef,
+  type CoinSource,
+  type OwnedCoin,
+  InsufficientBalanceError,
+  MAX_INPUT_COINS,
+  discoverCoins,
+  selectCoins,
+  sortLargestFirst,
+} from "./coins.js";
 
 export interface GasCostSummary {
   computationCost: string;
@@ -42,22 +51,31 @@ export type SimulateResult =
 /** The slice of `SuiGrpcClient` the payer needs; structurally satisfied by it. */
 export interface PaymentClient extends CoinSource {
   getCurrentSystemState(): Promise<{ systemState: { epoch: string; referenceGasPrice: string } }>;
-  /** Genesis checkpoint digest (base58) — what `ValidDuring.chain` must carry. */
+  /** Genesis checkpoint digest (base58) of the chain the client is actually talking to. */
   getChainIdentifier(): Promise<{ chainIdentifier: string }>;
-  /** Resolves when the digest is on chain; rejects with `TransactionError("notFound")` otherwise. */
-  getTransaction(input: { digest: string }): Promise<unknown>;
+  /** Current version of an owned object; rejects when it no longer exists. */
+  getObject(input: { objectId: string }): Promise<{ object: { version: string } }>;
   simulateTransaction(input: SimulateInput): Promise<SimulateResult>;
 }
+
+/**
+ * Genesis checkpoint digest per network id. Only testnet is pinned (observed
+ * live 2026-08-22); mainnet is a human's call (docs/BLOCKED.md #4) and must be
+ * supplied through `chainIdentifiers`.
+ */
+export const CHAIN_IDENTIFIERS: Readonly<Record<string, string>> = {
+  "sui:testnet": "69WiPg3DAQiwdxfncX6wYQ2siKwAe6L9BZthQea3JNMD",
+};
 
 export const DEFAULT_GAS_HEADROOM_PERCENT = 20;
 /** 1 SUI. A payment tx costing more than this is a gas spike, not a fee. */
 export const DEFAULT_MAX_GAS_BUDGET = 1_000_000_000n;
-/** Protocol `max_tx_gas` (50 SUI). */
-const PROTOCOL_MAX_GAS = 50_000_000_000n;
+/** Protocol `max_tx_gas` (50,000 SUI), read from the live testnet protocol config. */
+const PROTOCOL_MAX_TX_GAS = 50_000_000_000_000n;
 /** Same fixed overhead the Sui SDK adds to a simulated computation cost. */
 const GAS_SAFE_OVERHEAD = 1000n;
 
-export type PaymentBuildReason = "simulation_failed" | "gas_budget_exceeded" | "self_check_failed";
+export type PaymentBuildReason = "network_mismatch" | "simulation_failed" | "gas_budget_exceeded" | "self_check_failed";
 
 export class PaymentBuildError extends Error {
   constructor(
@@ -75,6 +93,8 @@ export interface BuildPaymentOptions {
   requirements: PaymentRequirements;
   gasHeadroomPercent?: number;
   maxGasBudget?: bigint;
+  /** Extends or overrides `CHAIN_IDENTIFIERS`. */
+  chainIdentifiers?: Readonly<Record<string, string>>;
 }
 
 export interface BuiltPayment {
@@ -86,6 +106,8 @@ export interface BuiltPayment {
   amount: bigint;
   gasPrice: bigint;
   gasBudget: bigint;
+  /** First gas coin: any execution of the transaction, successful or not, moves its version. */
+  gasCoin: CoinRef;
   /** Last epoch in which the network accepts the transaction. */
   expiresAfterEpoch: bigint;
 }
@@ -153,6 +175,19 @@ export async function buildPaymentTransaction(opts: BuildPaymentOptions): Promis
     client.getCurrentSystemState(),
     client.getChainIdentifier(),
   ]);
+  const expectedChain = { ...CHAIN_IDENTIFIERS, ...opts.chainIdentifiers }[requirements.network];
+  if (expectedChain === undefined) {
+    throw new PaymentBuildError(
+      "network_mismatch",
+      `no chain identifier is pinned for ${requirements.network}; pass chainIdentifiers to pay on it`,
+    );
+  }
+  if (expectedChain !== chainIdentifier) {
+    throw new PaymentBuildError(
+      "network_mismatch",
+      `client is connected to chain ${chainIdentifier}, but ${requirements.network} is ${expectedChain}`,
+    );
+  }
   const gasPrice = BigInt(systemState.referenceGasPrice);
   const epoch = BigInt(systemState.epoch);
   const payment = paysInSui ? null : selectCoins(assetCoins, amount, asset);
@@ -161,11 +196,11 @@ export async function buildPaymentTransaction(opts: BuildPaymentOptions): Promis
   tx.setSender(sender);
   tx.setGasPrice(gasPrice);
   // The network does not support timestamp expiry yet (spec-notes #8); the
-  // current epoch is the tightest bound it enforces.
+  // next epoch is the tightest bound that never fails at an epoch rollover.
   tx.setExpiration({
     ValidDuring: {
       minEpoch: null,
-      maxEpoch: String(epoch),
+      maxEpoch: String(epoch + 1n),
       minTimestamp: null,
       maxTimestamp: null,
       chain: chainIdentifier,
@@ -182,13 +217,18 @@ export async function buildPaymentTransaction(opts: BuildPaymentOptions): Promis
   const [paid] = tx.splitCoins(source, [amount]);
   tx.transferObjects([paid], payTo);
 
-  // Gas is estimated on the smallest coin set that can back a simulation. The
-  // final set is a superset (largest-first prefixes nest), so the rebate from
-  // smashing extra gas coins can only make the estimate conservative.
+  // Gas coins cover the amount plus up to maxGasBudget of gas, and the same
+  // set is simulated and signed, so the smashing rebate in the estimate is the
+  // one the network will apply.
   const reserve = paysInSui ? amount : 0n;
-  const estimate = selectCoins(suiCoins, reserve + GAS_SAFE_OVERHEAD * gasPrice, SUI_TYPE_ARG);
-  tx.setGasPayment([estimate.primary, ...estimate.merge].map(ref));
-  tx.setGasBudget(min(estimate.total - reserve, PROTOCOL_MAX_GAS));
+  const available = sortLargestFirst(suiCoins)
+    .slice(0, MAX_INPUT_COINS)
+    .reduce((sum, c) => sum + BigInt(c.balance), 0n);
+  const minimumGas = GAS_SAFE_OVERHEAD * gasPrice;
+  if (available < reserve + minimumGas) throw new InsufficientBalanceError(SUI_TYPE_ARG, reserve + minimumGas, available);
+  const gas = selectCoins(suiCoins, reserve + min(maxGasBudget, available - reserve), SUI_TYPE_ARG);
+  tx.setGasPayment([gas.primary, ...gas.merge].map(ref));
+  tx.setGasBudget(min(gas.total - reserve, PROTOCOL_MAX_TX_GAS));
   const simulated = await simulate(client, await tx.build());
 
   const gasBudget = computeGasBudget(simulated.effects.gasUsed, gasPrice, headroom);
@@ -198,6 +238,7 @@ export async function buildPaymentTransaction(opts: BuildPaymentOptions): Promis
       `gas budget ${gasBudget} MIST exceeds maxGasBudget ${maxGasBudget} MIST at reference gas price ${gasPrice}`,
     );
   }
+  if (gasBudget > gas.total - reserve) throw new InsufficientBalanceError(SUI_TYPE_ARG, reserve + gasBudget, gas.total);
   const credited = receivedBy(simulated.balanceChanges, payTo, asset);
   if (credited === null || credited < amount) {
     throw new PaymentBuildError(
@@ -206,8 +247,6 @@ export async function buildPaymentTransaction(opts: BuildPaymentOptions): Promis
     );
   }
 
-  const gas = selectCoins(suiCoins, reserve + gasBudget, SUI_TYPE_ARG);
-  tx.setGasPayment([gas.primary, ...gas.merge].map(ref));
   tx.setGasBudget(gasBudget);
   const bytes = await tx.build();
   return {
@@ -219,6 +258,7 @@ export async function buildPaymentTransaction(opts: BuildPaymentOptions): Promis
     amount,
     gasPrice,
     gasBudget,
-    expiresAfterEpoch: epoch,
+    gasCoin: ref(gas.primary),
+    expiresAfterEpoch: epoch + 1n,
   };
 }

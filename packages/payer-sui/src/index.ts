@@ -52,4 +52,5 @@ export {
   PaymentRejectedError,
   type SuiX402PayerOptions,
   type PaymentReceipt,
+  type SentPayment,
 } from "./payer.js";

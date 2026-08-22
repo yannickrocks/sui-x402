@@ -83,10 +83,13 @@ const byBalanceDesc = (a: OwnedCoin, b: OwnedCoin): number => {
   return diff > 0n ? 1 : diff < 0n ? -1 : 0;
 };
 
+/** A copy of `coins` sorted largest-first — the order every selection here walks. */
+export const sortLargestFirst = (coins: readonly OwnedCoin[]): OwnedCoin[] => [...coins].sort(byBalanceDesc);
+
 /** Smallest largest-first set of coins covering `amount`; throws `InsufficientBalanceError` pre-sign. */
 export function selectCoins(coins: readonly OwnedCoin[], amount: bigint, asset: string): CoinSelection {
   if (amount <= 0n) throw new RangeError(`payment amount must be positive, got ${amount}`);
-  const candidates = [...coins].sort(byBalanceDesc).slice(0, MAX_INPUT_COINS);
+  const candidates = sortLargestFirst(coins).slice(0, MAX_INPUT_COINS);
   let primary: OwnedCoin | undefined;
   const merge: OwnedCoin[] = [];
   let total = 0n;

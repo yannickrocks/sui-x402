@@ -1,10 +1,9 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { bcs } from "@mysten/sui/bcs";
-import { TransactionError } from "@mysten/sui/client";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
-import { Transaction } from "@mysten/sui/transactions";
-import { SUI_TYPE_ARG, fromBase64, toBase58 } from "@mysten/sui/utils";
+import { Transaction, TransactionDataBuilder } from "@mysten/sui/transactions";
+import { SUI_TYPE_ARG, fromBase64 } from "@mysten/sui/utils";
 import {
   HEADER_PAYMENT_REQUIRED,
   HEADER_PAYMENT_RESPONSE,
@@ -20,7 +19,7 @@ import {
 import { InsufficientBalanceError, type OwnedCoin } from "../src/coins.js";
 import { NoAcceptableRequirementError, type SelectOptions } from "../src/select.js";
 import { KeypairSigner, type PayerSigner } from "../src/signer.js";
-import type { BalanceChange, GasCostSummary, PaymentClient } from "../src/tx.js";
+import { type BalanceChange, type GasCostSummary, type PaymentClient, CHAIN_IDENTIFIERS } from "../src/tx.js";
 import { PaymentRejectedError, SuiX402Payer } from "../src/payer.js";
 
 const fixture = PaymentRequired.parse(
@@ -81,6 +80,9 @@ const signatureHeader = (call: FetchCall): string => {
 
 const paymentOf = (call: FetchCall): PaymentPayload => decodeHeader(signatureHeader(call), PaymentPayload);
 
+const digestOf = (call: FetchCall): string =>
+  TransactionDataBuilder.getDigestFromBytes(fromBase64(paymentOf(call).payload.transaction));
+
 /** The header before any schema touches it, to prove the payer relays verbatim. */
 const rawPaymentOf = (call: FetchCall): unknown =>
   JSON.parse(Buffer.from(signatureHeader(call), "base64").toString("utf8"));
@@ -88,9 +90,9 @@ const rawPaymentOf = (call: FetchCall): unknown =>
 // --- mocked gRPC client -----------------------------------------------------
 
 const GAS_USED: GasCostSummary = { computationCost: "1000000", storageCost: "2000000", storageRebate: "500000" };
-const CHAIN_ID = toBase58(new Uint8Array(32).fill(9));
+const CHAIN_ID = CHAIN_IDENTIFIERS["sui:testnet"] ?? "";
 const EPOCH = "1199";
-const NO_CALLS = { listCoins: 0, getCurrentSystemState: 0, getChainIdentifier: 0, getTransaction: 0, simulateTransaction: 0 };
+const NO_CALLS = { listCoins: 0, getCurrentSystemState: 0, getChainIdentifier: 0, getObject: 0, simulateTransaction: 0 };
 
 type OnChain = "present" | "absent" | "error";
 
@@ -120,11 +122,12 @@ function mockClient(usdcBalance = 1_000_000n, onChain: OnChain = "absent") {
       calls.getCurrentSystemState++;
       return { systemState: { epoch: EPOCH, referenceGasPrice: "1000" } };
     },
-    async getTransaction({ digest }) {
-      calls.getTransaction++;
-      if (onChain === "present") return { digest };
+    async getObject({ objectId }) {
+      calls.getObject++;
       if (onChain === "error") throw new Error("UNAVAILABLE: node unreachable");
-      throw new TransactionError("notFound", digest);
+      const found = [...sui, ...usdc].find((c) => c.objectId === objectId);
+      if (found === undefined) throw new Error(`object ${objectId} not found`);
+      return { object: { version: onChain === "present" ? String(Number(found.version) + 1) : found.version } };
     },
     async getChainIdentifier() {
       calls.getChainIdentifier++;
@@ -183,6 +186,12 @@ function setup(script: Scripted[], options: SetupOptions = {}) {
 // --- decoding helpers -------------------------------------------------------
 
 const decodeTx = (transaction: string) => Transaction.from(fromBase64(transaction)).getData();
+
+const at = <T>(xs: readonly T[], i: number): T => {
+  const v = xs[i];
+  if (v === undefined) throw new Error(`missing index ${i}`);
+  return v;
+};
 
 const pureInput = (data: ReturnType<typeof decodeTx>, arg: { $kind: string; Input?: number }): Uint8Array => {
   if (arg.$kind !== "Input" || arg.Input === undefined) throw new Error(`expected a pure input, got ${arg.$kind}`);
@@ -298,9 +307,10 @@ describe("SuiX402Payer.fetchWithReceipt — happy path", () => {
 
   it("pays the seller's offer and reports the settlement", async () => {
     const headers = new Headers({ authorization: "Bearer caller-token" });
-    const { payer, calls, keypair, address } = setup([required(terms()), settled(SETTLE, "paid")]);
+    const script: Scripted[] = [required(terms()), () => settled({ ...SETTLE, transaction: digestOf(at(calls, 1)) }, "paid")];
+    const { payer, calls, keypair, address } = setup(script);
 
-    const { response, receipt } = await payer.fetchWithReceipt(URL_UNDER_TEST, { headers });
+    const { response, receipt, sent } = await payer.fetchWithReceipt(URL_UNDER_TEST, { headers });
 
     expect(response.status).toBe(200);
     expect(await response.text()).toBe("paid");
@@ -315,16 +325,18 @@ describe("SuiX402Payer.fetchWithReceipt — happy path", () => {
     expect(await keypair.getPublicKey().verifyTransaction(bytes, payload.payload.signature)).toBe(true);
     const data = decodeTx(payload.payload.transaction);
     expect(data.sender).toBe(address);
-    expect(data.expiration?.ValidDuring?.maxEpoch).toBe(EPOCH);
+    expect(data.expiration?.ValidDuring?.maxEpoch).toBe(String(Number(EPOCH) + 1));
     expect(splitAmount(payload.payload.transaction)).toBe("10000");
 
+    const digest = digestOf(calls[1]);
+    expect(sent).toEqual({ digest, accepted: live });
     expect(receipt).toEqual({
-      digest: SETTLE.transaction,
+      digest,
       payer: SETTLE.payer,
       amount: "10000",
       network: "sui:testnet",
       accepted: live,
-      settle: SETTLE,
+      settle: { ...SETTLE, transaction: digest },
     });
 
     expect(headers.get(HEADER_PAYMENT_SIGNATURE)).toBeNull();
@@ -367,7 +379,7 @@ describe("SuiX402Payer.fetchWithReceipt — happy path", () => {
     expect(paymentOf(calls[1]).accepted).toEqual(live);
   });
 
-  it("bounds every payment to the current epoch on chain, even when the offer sets no timeout", async () => {
+  it("bounds every payment to the next epoch on chain, even when the offer sets no timeout", async () => {
     const offer = withRaw(live, {});
     offer.maxTimeoutSeconds = 0;
     const { payer, calls } = setup([required(terms([offer])), new Response(null, { status: 200 })]);
@@ -375,7 +387,7 @@ describe("SuiX402Payer.fetchWithReceipt — happy path", () => {
     await payer.fetch(URL_UNDER_TEST);
 
     const expiration = decodeTx(paymentOf(calls[1]).payload.transaction).expiration?.ValidDuring;
-    expect(expiration?.maxEpoch).toBe(EPOCH);
+    expect(expiration?.maxEpoch).toBe(String(Number(EPOCH) + 1));
     expect(expiration?.chain).toBe(CHAIN_ID);
   });
 
@@ -388,10 +400,37 @@ describe("SuiX402Payer.fetchWithReceipt — happy path", () => {
     expect(receipt).toBeNull();
   });
 
-  it("returns a null receipt when nothing was paid", async () => {
+  it("returns a null receipt and no sent payment when nothing was paid", async () => {
     const { payer } = setup([new Response("free", { status: 200 })]);
 
-    expect((await payer.fetchWithReceipt(URL_UNDER_TEST)).receipt).toBeNull();
+    const { receipt, sent } = await payer.fetchWithReceipt(URL_UNDER_TEST);
+    expect(receipt).toBeNull();
+    expect(sent).toBeNull();
+  });
+
+  it("returns a null receipt when a successful settlement names a digest this payer never signed", async () => {
+    const { payer, calls } = setup([required(terms()), settled(SETTLE, "paid")]);
+
+    const { receipt, sent } = await payer.fetchWithReceipt(URL_UNDER_TEST);
+    expect(receipt).toBeNull();
+    expect(sent?.digest).toBe(digestOf(calls[1]));
+  });
+
+  it("still reports a failed settlement, whose digest is empty", async () => {
+    const failed: SettleResponse = { success: false, errorReason: "unexpected_settle_error", transaction: "", network: "sui:testnet" };
+    const { payer } = setup([required(terms()), settled(failed, "")]);
+
+    const { receipt } = await payer.fetchWithReceipt(URL_UNDER_TEST);
+    expect(receipt?.digest).toBe("");
+    expect(receipt?.settle).toEqual(failed);
+  });
+
+  it("treats an oversized 402 body as no terms", async () => {
+    const huge = new Response(`{"pad":"${"x".repeat(300_000)}"}`, { status: 402 });
+    const { payer, clientCalls } = setup([huge]);
+
+    expect(await payer.fetch(URL_UNDER_TEST)).toBe(huge);
+    expect(clientCalls).toEqual(NO_CALLS);
   });
 
   it("returns a null receipt on a malformed PAYMENT-RESPONSE, never losing the paid response", async () => {
@@ -417,13 +456,15 @@ describe("SuiX402Payer — a second 402 (PRD §8.11, §8.12)", () => {
       required(terms([drifted], "invalid_payment_requirements")),
       new Response("paid", { status: 200 }),
     ];
-    const { payer, calls, signed } = setup(script);
+    const { payer, calls, clientCalls, signed, delays } = setup(script);
 
     const response = await payer.fetch(URL_UNDER_TEST);
 
     expect(response.status).toBe(200);
     expect(calls).toHaveLength(3);
     expect(signed()).toBe(2);
+    expect(clientCalls.getObject).toBe(2);
+    expect(delays).toEqual([1_500]);
     expect(paymentOf(calls[1]).accepted.amount).toBe("10000");
     const second = paymentOf(calls[2]);
     expect(second.accepted).toEqual(drifted);
@@ -453,13 +494,14 @@ describe("SuiX402Payer — a second 402 (PRD §8.11, §8.12)", () => {
       required(terms(undefined, "invalid_transaction_state")),
       new Response("paid", { status: 200 }),
     ];
-    const { payer, calls, signed } = setup(script);
+    const { payer, calls, clientCalls, signed } = setup(script);
 
     const response = await payer.fetch(URL_UNDER_TEST);
 
     expect(response.status).toBe(200);
     expect(calls).toHaveLength(3);
     expect(signed()).toBe(2);
+    expect(clientCalls.getObject).toBe(2);
     const [first, second] = [paymentOf(calls[1]), paymentOf(calls[2])];
     expect(second.payload.transaction).not.toBe(first.payload.transaction);
     expect(second.accepted).toEqual(first.accepted);
@@ -503,10 +545,33 @@ describe("SuiX402Payer — a second 402 (PRD §8.11, §8.12)", () => {
 
     const err = await rejectsWith(payer.fetch(URL_UNDER_TEST), PaymentRejectedError);
 
-    expect(err.message).toContain("already on chain");
+    expect(err.message).toContain("may have executed");
     expect(err.retryHint).toBe("none");
-    expect(clientCalls.getTransaction).toBe(1);
+    expect(clientCalls.getObject).toBe(1);
     expect(calls).toHaveLength(2);
+    expect(signed()).toBe(1);
+  });
+
+  it("refuses to refetch terms when the first payment's gas coin has moved", async () => {
+    const script: Scripted[] = [required(terms()), required(terms([drifted], "invalid_payment_requirements"))];
+    const { payer, signed, calls } = setup(script, { onChain: "present" });
+
+    const err = await rejectsWith(payer.fetch(URL_UNDER_TEST), PaymentRejectedError);
+
+    expect(err.reason).toBe("invalid_payment_requirements");
+    expect(err.message).toContain("may have executed");
+    expect(signed()).toBe(1);
+    expect(calls).toHaveLength(2);
+  });
+
+  it("hands back a second 402 whose PAYMENT-REQUIRED header is unreadable, instead of throwing", async () => {
+    const broken = new Response(null, { status: 402, headers: { [HEADER_PAYMENT_REQUIRED]: "!!!not base64!!!" } });
+    const { payer, signed } = setup([required(terms()), broken]);
+
+    const err = await rejectsWith(payer.fetch(URL_UNDER_TEST), PaymentRejectedError);
+
+    expect(err.response).toBe(broken);
+    expect(err.reason).toBe("");
     expect(signed()).toBe(1);
   });
 
