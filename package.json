@@ -12,7 +12,8 @@
     "@types/node": "^22",
     "turbo": "^2.0.0",
     "typescript": "5.6",
-    "vitest": "^2.1"
+    "vitest": "^2.1",
+    "tsx": "^4.19.0"
   },
   "dependencies": {
     "hono": "4.6",
