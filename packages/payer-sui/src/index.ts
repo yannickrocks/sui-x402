@@ -22,6 +22,18 @@ export {
   type CoinSource,
   type CoinSelection,
 } from "./coins.js";
+export {
+  buildPaymentTransaction,
+  computeGasBudget,
+  receivedBy,
+  PaymentBuildError,
+  DEFAULT_GAS_HEADROOM_PERCENT,
+  DEFAULT_MAX_GAS_BUDGET,
+  type BuildPaymentOptions,
+  type BuiltPayment,
+  type PaymentClient,
+  type PaymentBuildReason,
+} from "./tx.js";
 
 const RequiredHeader = z.object({
   x402Version: z.literal(2),
