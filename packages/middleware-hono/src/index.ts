@@ -1,93 +1,54 @@
 /**
- * @sui-x402/hono — seller middleware. Makes any Hono route x402-payable.
+ * @sui-x402/hono — the x402 seller paywall for Hono routes.
  *
- * Flow: no PAYMENT-SIGNATURE header → 402 + PAYMENT-REQUIRED (base64 terms).
- * With header → POST facilitator /verify → (strict mode) POST /settle →
- * run handler → attach PAYMENT-RESPONSE (settlement digest).
+ * Every decision belongs to `@sui-x402/core`'s seller: what a 402 says, when a
+ * payment header is malformed, whether the facilitator answered, and whether
+ * the handler may run at all. This module only moves a Hono request into a
+ * `SellerRequest` and a `SellerDecision` back out, so `@sui-x402/hono`,
+ * `@sui-x402/express` and `@sui-x402/next` share one conformance suite.
  *
- * Modes:
- *  - "strict"  (default): settle BEFORE fulfilling. No free content on
- *    settle failure (equivocation-safe).
- *  - "fast": verify → fulfill → settle. Lower latency; accepts the
- *    verify→settle gap risk. Document the tradeoff to sellers.
+ * Two invariants live in the translation. A `respond` decision never calls
+ * `next()`, so content is never fulfilled unpaid. And the PAYMENT-SIGNATURE
+ * header is handed to the seller exactly as it arrived — the facilitator judges
+ * the bytes the payer signed.
+ *
+ * `x402()` never contacts the facilitator at construction: call
+ * `seller.assertFacilitatorSupports()` when the app boots so a network or
+ * scheme mismatch fails loudly at startup rather than once per request
+ * (PRD §8.15).
  */
 import type { MiddlewareHandler } from "hono";
 import {
-  PaymentPayload, PaymentRequirements, SettleResponse, VerifyResponse,
-  HEADER_PAYMENT_REQUIRED, HEADER_PAYMENT_SIGNATURE, HEADER_PAYMENT_RESPONSE,
-  encodeHeader, decodeHeader,
+  HEADER_PAYMENT_SIGNATURE,
+  createSeller,
+  type Seller,
+  type SellerOptions,
 } from "@sui-x402/core";
 
-export interface X402Options {
-  payTo: string;
-  amount: string;              // atomic units (USDC has 6 dp)
-  asset: string;               // full struct tag
-  network: "sui:mainnet" | "sui:testnet";
-  facilitator: string;         // base URL
-  mode?: "strict" | "fast";
-  maxTimeoutSeconds?: number;
-  description?: string;
-}
+export { createSeller } from "@sui-x402/core";
+export type { Seller, SellerOptions } from "@sui-x402/core";
 
-async function post<T>(url: string, body: unknown): Promise<T> {
-  const r = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!r.ok) throw new Error(`facilitator ${url} -> HTTP ${r.status}`);
-  return (await r.json()) as T;
-}
-
-export function x402(opts: X402Options): MiddlewareHandler {
-  const mode = opts.mode ?? "strict";
-  const requirements = PaymentRequirements.parse({
-    scheme: "exact",
-    network: opts.network,
-    amount: opts.amount,
-    asset: opts.asset,
-    payTo: opts.payTo,
-    maxTimeoutSeconds: opts.maxTimeoutSeconds ?? 60,
-    extra: {},
-  });
+/**
+ * Makes the routes it is mounted on payable. Pass options to build a seller, or
+ * a `Seller` to share one instance (and one set of terms) across several mounts.
+ */
+export function x402(options: SellerOptions | Seller): MiddlewareHandler {
+  const seller = "handle" in options ? options : createSeller(options);
 
   return async (c, next) => {
-    const sig = c.req.header(HEADER_PAYMENT_SIGNATURE);
-    if (!sig) {
-      c.header(HEADER_PAYMENT_REQUIRED, encodeHeader({
-        x402Version: 2,
-        accepts: [requirements],
-        resource: { url: c.req.url, description: opts.description },
-      }));
-      return c.json({ error: "payment required" }, 402);
-    }
-
-    let payload: PaymentPayload;
-    try {
-      payload = decodeHeader(sig, PaymentPayload);
-    } catch {
-      return c.json({ error: "malformed PAYMENT-SIGNATURE" }, 400);
-    }
-
-    const body = { x402Version: 2, paymentPayload: payload, paymentRequirements: requirements };
-
-    const v = await post<VerifyResponse>(`${opts.facilitator}/verify`, body);
-    if (!v.isValid) return c.json({ error: "invalid payment", reason: v.invalidReason }, 402);
-
-    if (mode === "strict") {
-      const s = await post<SettleResponse>(`${opts.facilitator}/settle`, body);
-      if (!s.success) return c.json({ error: "settlement failed", reason: s.errorReason }, 402);
-      c.header(HEADER_PAYMENT_RESPONSE, encodeHeader(s));
-      await next();
-      return;
-    }
-
-    // fast mode: fulfill first, settle after response is produced
-    await next();
-    const s = await post<SettleResponse>(`${opts.facilitator}/settle`, body).catch((e) => {
-      console.error("post-fulfill settle failed:", e);
-      return null;
+    const decision = await seller.handle({
+      url: c.req.url,
+      paymentSignature: c.req.header(HEADER_PAYMENT_SIGNATURE) ?? null,
     });
-    if (s) c.header(HEADER_PAYMENT_RESPONSE, encodeHeader(s));
+    for (const [name, value] of Object.entries(decision.headers))
+      c.header(name, value);
+
+    if (decision.kind === "respond")
+      return c.json(decision.body, decision.status);
+
+    await next();
+    // Fast mode: the response leaves now; settlement runs behind it and is
+    // reported through onSettled / onSettleFailure. `settleAfter` never rejects.
+    if (decision.settleAfter !== null) void decision.settleAfter();
   };
 }
