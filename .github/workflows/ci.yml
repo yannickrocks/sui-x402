@@ -1,0 +1,48 @@
+name: ci
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+
+  e2e-testnet:
+    needs: unit
+    runs-on: ubuntu-latest
+    # Secrets are unavailable to forks; the step below also skips when the secret is unset.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    env:
+      PAYER_SECRET_KEY: ${{ secrets.PAYER_SECRET_KEY }}
+      PAY_TO: ${{ vars.E2E_PAY_TO }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Live testnet payment (skips without PAYER_SECRET_KEY)
+        if: env.PAYER_SECRET_KEY != ''
+        run: E2E=1 pnpm test
