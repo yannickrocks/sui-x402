@@ -21,6 +21,7 @@ import type { MiddlewareHandler } from "hono";
 import {
   HEADER_PAYMENT_SIGNATURE,
   createSeller,
+  isSeller,
   type Seller,
   type SellerOptions,
 } from "@sui-x402/core";
@@ -33,7 +34,7 @@ export type { Seller, SellerOptions } from "@sui-x402/core";
  * a `Seller` to share one instance (and one set of terms) across several mounts.
  */
 export function x402(options: SellerOptions | Seller): MiddlewareHandler {
-  const seller = "handle" in options ? options : createSeller(options);
+  const seller = isSeller(options) ? options : createSeller(options);
 
   return async (c, next) => {
     const decision = await seller.handle({

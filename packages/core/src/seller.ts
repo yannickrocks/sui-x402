@@ -162,6 +162,9 @@ const buildRequirements = (options: SellerOptions): PaymentRequirements => {
   );
 };
 
+/** Adapters accept either; a `Seller` is shared across mounts, options build one. */
+export const isSeller = (value: SellerOptions | Seller): value is Seller => "handle" in value;
+
 export function createSeller(options: SellerOptions): Seller {
   const requirements = buildRequirements(options);
   if (requirements.network === "sui:mainnet" && options.allowMainnet !== true) {

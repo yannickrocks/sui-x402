@@ -9,6 +9,7 @@ import type { RequestHandler } from "express";
 import {
   HEADER_PAYMENT_SIGNATURE,
   createSeller,
+  isSeller,
   type Seller,
   type SellerOptions,
 } from "@sui-x402/core";
@@ -26,9 +27,6 @@ export type {
   SellerRequest,
   SettleFailure,
 } from "@sui-x402/core";
-
-const isSeller = (value: SellerOptions | Seller): value is Seller =>
-  "handle" in value;
 
 /**
  * Guards the routes it is mounted on. In strict mode (the default) the payment

@@ -13,7 +13,7 @@
  * lacks (PRD §8.14). Wrap route handlers, not `middleware.ts` — that file runs
  * on the edge.
  */
-import { HEADER_PAYMENT_SIGNATURE, createSeller, type Seller, type SellerOptions } from "@sui-x402/core";
+import { HEADER_PAYMENT_SIGNATURE, createSeller, isSeller, type Seller, type SellerOptions } from "@sui-x402/core";
 
 export { createSeller } from "@sui-x402/core";
 export type { Seller, SellerOptions } from "@sui-x402/core";
@@ -26,7 +26,7 @@ export type RouteHandler<Context = unknown> = (request: Request, context: Contex
  * Pass a `Seller` to share one instance (and one set of terms) across routes.
  */
 export function withX402(options: SellerOptions | Seller): <Context>(handler: RouteHandler<Context>) => RouteHandler<Context> {
-  const seller = "handle" in options ? options : createSeller(options);
+  const seller = isSeller(options) ? options : createSeller(options);
 
   return (handler) => async (request, context) => {
     const decision = await seller.handle({
