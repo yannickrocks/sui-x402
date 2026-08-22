@@ -1,0 +1,23 @@
+{
+  "name": "example-next-paywall",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "NODE_OPTIONS=--max-http-header-size=262144 next dev",
+    "build": "next build",
+    "start": "NODE_OPTIONS=--max-http-header-size=262144 next start",
+    "typecheck": "tsc --noEmit -p .",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@sui-x402/core": "workspace:*",
+    "@sui-x402/next": "workspace:*",
+    "next": "^15.5.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0"
+  }
+}
