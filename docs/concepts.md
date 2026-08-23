@@ -177,7 +177,7 @@ stateDiagram-v2
   Sent --> Done: 2xx / any non-402 (returned as-is)
   Sent --> Resend: 502 · 503 · 504 · unexpected_*_error
   Resend --> Sent: same bytes, after Retry-After (≤ 2×)
-  Sent --> Guard: 402 invalid_payment_requirements<br/>or invalid_transaction_state
+  Sent --> Guard: 402 with a rebuild reason code
   Guard --> Rebuild: gas coin unmoved (2 reads)
   Guard --> Rejected: gas coin moved · lookup failed
   Rebuild --> Sent: new terms or fresh nonce (once)
