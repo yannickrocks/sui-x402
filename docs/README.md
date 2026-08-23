@@ -9,6 +9,7 @@
 |---|---|
 | [Concepts](concepts.md) | The payment lifecycle, headers, strict vs fast, expiry, retries |
 | [Security model](security-model.md) | Trust boundaries and the defenses on each side |
+| [Decisions](decisions.md) | Design record D1–D13, review rounds, evidence |
 | [Spec notes](spec-notes.md) | Observed behaviour of the live facilitator vs the x402 spec |
 
 | Build | |
@@ -20,8 +21,7 @@
 
 | Project | |
 |---|---|
-| [PRD](sui-x402-prd.md) | Product requirements, market validation, roadmap |
-| [Roadmap](roadmap.md) · [Journal](journal.md) · [Handoff](HANDOFF.md) · [Blocked](BLOCKED.md) | How it was built, decisions D1–D13, what a human still has to do |
+| [Status](status.md) | What is proven, what is pending, live-test setup, mainnet gating |
 
 Package references live next to the code: [`core`](../packages/core/README.md),
 [`payer-sui`](../packages/payer-sui/README.md), [`hono`](../packages/middleware-hono/README.md),

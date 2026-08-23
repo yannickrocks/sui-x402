@@ -146,4 +146,4 @@ epoch-bound `ValidDuring` expiration with a random nonce. Everything is
 `packages/payer-sui/test/e2e.test.ts` pays a real seller on testnet. It skips
 unless `E2E=1` and `PAYER_SECRET_KEY` are set; `X402_RESOURCE_URL` points it at
 any seller advertising the fixture's terms (the public demo is currently
-broken upstream). See `docs/BLOCKED.md` for the local facilitator recipe.
+broken upstream). See [status.md](../status.md) for the local facilitator recipe.

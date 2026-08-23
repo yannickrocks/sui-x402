@@ -69,7 +69,7 @@ Live = `https://sui-facilitator.onrender.com`; pinned = submodule commit in
     endpoints. …"}` before anything is broadcast (payer balances unchanged).
     The deployed demo/seller layer (`serve-all.ts`, not in the repo) still
     calls JSON-RPC; the pinned facilitator itself is gRPC-only and settles
-    fine when run locally. Reported upstream: `docs/outbox/upstream-issue-demo-jsonrpc.md`.
+    fine when run locally. Reported upstream to the facilitator's author.
 13. **First live settlements (2026-08-23, testnet, epoch 1200)** through the
     pinned facilitator run locally: `GE85dg3wNUdfRKJpFW9bBz2qkk4qgvgihWxMrFzDfc4T`
     (hono example), `CKYr3pP6Amrg62C9kxZX5w2UVfitDTBJeE2zjdfjnZZU` (payer-sui

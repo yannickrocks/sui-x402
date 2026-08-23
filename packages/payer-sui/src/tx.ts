@@ -60,7 +60,7 @@ export interface PaymentClient extends CoinSource {
 
 /**
  * Genesis checkpoint digest per network id. Only testnet is pinned (observed
- * live 2026-08-22); mainnet is a human's call (docs/BLOCKED.md #4) and must be
+ * live 2026-08-22); mainnet is an integrator's call (docs/status.md) and must be
  * supplied through `chainIdentifiers`.
  */
 export const CHAIN_IDENTIFIERS: Readonly<Record<string, string>> = {

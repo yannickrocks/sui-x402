@@ -14,13 +14,18 @@ the price and a payee, the client retries with a signed on-chain payment
 attached, and a facilitator verifies and settles it. The whole exchange is two
 HTTP requests and carries no accounts, sessions or card numbers.
 
-x402 has production implementations for EVM chains from Stripe, AWS, Cloudflare
-and Coinbase. Sui is a natural fit — sub-second finality, native USDC, an
-explicit focus on agent payments — and the protocol already defines a Sui
-`exact` scheme. What existed on Sui was a single open-source facilitator and no
-developer tooling: no middleware, no client library, no examples. Every seller
-would have to build the money path from scratch, which is exactly the part that
-must not be built carelessly.
+x402 is governed by the Linux Foundation's x402 Foundation (launched July
+2026, contributed by Coinbase) and has production implementations for EVM
+chains from Stripe, AWS, Cloudflare and Coinbase. Sui is a natural fit: sub-second
+finality, native USDC, an explicit focus on agent payments, and an official
+`exact` scheme in the spec. What existed on Sui was one open-source reference
+facilitator and, on the tooling side, a marketplace-specific dialect
+(`@t2000/serve`: v1-style `X-PAYMENT` headers, a custom extension, the seller
+settling payments itself). There was no standards-track middleware or client
+library, nothing that speaks the x402 v2 wire format as specified and works
+with any compliant facilitator. Every seller wanting that would have to build
+the money path from scratch, which is exactly the part that must not be built
+carelessly.
 
 ## What sui-x402 is
 
@@ -90,5 +95,5 @@ to end.
 
 Testnet, pre-1.0, unpublished. Mainnet requires explicit opt-ins on both sides
 (`allowMainnet` for sellers, a pinned chain identifier for payers). See
-[HANDOFF.md](HANDOFF.md) for what is proven, what is still only simulated, and
-the remaining human steps.
+[status.md](status.md) for what is proven, what is still only simulated, and
+the remaining steps.

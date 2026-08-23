@@ -2,7 +2,7 @@
  * Live testnet payment against the demo resource (roadmap M2.7).
  *
  * Runs only with `E2E=1` and a funded `PAYER_SECRET_KEY`; the wallet is funded
- * by a human (docs/BLOCKED.md #1), so by default this file skips and says why.
+ * by a human (docs/status.md), so by default this file skips and says why.
  * Nothing but the captured 402 fixture the expectations derive from is read at
  * import time: no client, no signer, no network.
  */
@@ -40,7 +40,7 @@ const missing = ["E2E", ENV_PAYER_SECRET_KEY].filter((name) => !process.env[name
 
 if (missing.length > 0) {
   console.log(
-    `e2e skipped: ${missing.join(" and ")} not set — see docs/BLOCKED.md #1`
+    `e2e skipped: ${missing.join(" and ")} not set — see docs/status.md`
   );
 }
 
@@ -63,7 +63,7 @@ describe.skipIf(missing.length > 0)("live testnet payment", () => {
       expect(
         held >= BigInt(AMOUNT),
         `payer ${owner} holds ${held} atomic units of ${USDC} in coin objects, needs ${AMOUNT}. ` +
-          `Fund the wallet as described in docs/BLOCKED.md #1.`
+          `Fund the wallet as described in docs/status.md.`
       ).toBe(true);
 
       // Fail safe if the live terms have drifted above the fixture: selection

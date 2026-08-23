@@ -4,7 +4,7 @@
  * a settlement receipt — and an unpaid request afterwards is still 402.
  *
  * Runs only with `E2E=1`, a funded `PAYER_SECRET_KEY` and a `PAY_TO` address
- * that is not the payer's own (docs/BLOCKED.md #1). Nothing runs at import time:
+ * that is not the payer's own (docs/status.md). Nothing runs at import time:
  * no server, no client, no signer, no network.
  */
 import { type Server, createServer } from "node:http";
@@ -45,7 +45,7 @@ const missing = ["E2E", ENV_PAYER_SECRET_KEY, "PAY_TO"].filter(
 );
 if (missing.length > 0) {
   console.log(
-    `e2e skipped: ${missing.join(" and ")} not set — see docs/BLOCKED.md #1`
+    `e2e skipped: ${missing.join(" and ")} not set — see docs/status.md`
   );
 }
 

@@ -20,10 +20,12 @@ without onboarding friction that kills the use case.
 
 x402 fixes the protocol half: an HTTP `402 Payment Required` that carries the
 price, a signed on-chain payment attached to the retried request, and a
-facilitator that verifies and settles it. Stripe, AWS and Cloudflare ship it
-for EVM chains. On Sui — the chain whose roadmap is agents and stablecoin
-payments — there was a facilitator, but no client library and no middleware.
-Every seller would have to hand-roll the money path.
+facilitator that verifies and settles it. It is governed by the Linux
+Foundation's x402 Foundation and shipped by Stripe, AWS and Cloudflare for EVM
+chains. Sui has an official `exact` scheme in the spec and a live reference
+facilitator, but the developer tooling around it was either missing or
+proprietary: no standards-track middleware or client library that speaks the
+v2 wire format and works with any compliant facilitator.
 
 ## The solution
 
@@ -157,7 +159,7 @@ examples, the payer, and the pinned facilitator — verified on chain with exact
 · [`CKYr3pP6…`](https://testnet.suivision.xyz/txblock/CKYr3pP6Amrg62C9kxZX5w2UVfitDTBJeE2zjdfjnZZU)
 · [`5MGrTQ82…`](https://testnet.suivision.xyz/txblock/5MGrTQ82xhYeciurZssjTcnLvRn4rdp1wkorEJaA7bAB).
 The unit and conformance suites add 346 tests; the money path went through two
-adversarial review rounds (recorded in [docs/journal.md](docs/journal.md)).
+adversarial review rounds (recorded in [docs/decisions.md](docs/decisions.md)).
 
 ## Documentation
 
@@ -169,6 +171,8 @@ adversarial review rounds (recorded in [docs/journal.md](docs/journal.md)).
 | [Guide: sell](docs/guides/sell.md) | Make a route payable with Hono, Express or Next.js |
 | [Guide: pay](docs/guides/pay.md) | Build a paying agent with `@sui-x402/payer-sui` |
 | [Security model](docs/security-model.md) | Trust boundaries, double-pay defenses, residual risks |
+| [Decisions](docs/decisions.md) | The design record, D1–D13, and what the reviews found |
+| [Status](docs/status.md) | What is proven, what is pending, how to run the live tests |
 | [Facilitator runbook](docs/facilitator-runbook.md) | Self-host the reference facilitator |
 | [FAQ](docs/faq.md) | Short answers |
 | [Spec notes](docs/spec-notes.md) | Where the live facilitator differs from the spec |

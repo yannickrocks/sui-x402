@@ -2,7 +2,7 @@
 
 **Do I need my own facilitator?**
 For development, the pinned facilitator runs locally in one command
-(`docs/BLOCKED.md` #1). For anything public, self-host it with
+([status.md](status.md)). For anything public, self-host it with
 `deploy/facilitator` — it is a deploy, not a port. The author's public demo
 instance is not a production dependency (PRD §8.16).
 
@@ -40,7 +40,17 @@ Sui retired public JSON-RPC in July 2026. Every chain call here goes through
 **What is the testnet network id?**
 `sui:testnet`. The x402 spec only names `sui:mainnet`; the reference facilitator
 and this SDK both use `sui:testnet`, and a spec proposal is drafted in
-`docs/outbox/`.
+the project's outbox.
+
+**How is this different from `@t2000/serve`?**
+t2000 ships a Sui x402 dialect for its agent marketplace: v1-style
+`X-PAYMENT` headers, a custom `extra.suimpp` extension, the seller verifying
+and settling payments itself, and a Next.js-first router. sui-x402 implements
+the x402 v2 wire format as the x402 Foundation specifies it, uses the
+facilitator architecture the foundation's own implementations use, settles
+before serving by default, and certifies Hono, Express and Next.js adapters
+with one conformance suite. It works with any compliant facilitator or payer.
+t2000 supports gasless payments today; sui-x402 does not yet.
 
 **Why is the public demo failing?**
 Its seller layer still calls JSON-RPC and answers `500` to valid payments

@@ -108,4 +108,4 @@ set -a; source examples/express-server/.env; set +a
 E2E=1 pnpm --filter example-express-server test
 ```
 
-Funding the payer wallet is a human step; see `docs/BLOCKED.md` #1.
+Funding the payer wallet is a human step; see `docs/status.md`.
