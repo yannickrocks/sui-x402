@@ -70,4 +70,5 @@ The wallet behind `PAYER_SECRET_KEY` needs testnet SUI for gas
 
 - Run the examples: `examples/hono-server`, `examples/express-server`, `examples/next-paywall`.
 - Self-host the facilitator: `docs/facilitator-runbook.md`.
-- Package docs: `packages/*/README.md`. Protocol notes from the live facilitator: `docs/spec-notes.md`.
+- Read on: [concepts](concepts.md), [guide: sell](guides/sell.md), [guide: pay](guides/pay.md), [security model](security-model.md).
+- Package references: `packages/*/README.md`. Protocol notes from the live facilitator: `docs/spec-notes.md`.
