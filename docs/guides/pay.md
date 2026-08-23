@@ -115,6 +115,23 @@ Verify a receipt independently with `client.getTransaction({ digest })`.
 
 ## Under the hood
 
+
+```mermaid
+flowchart LR
+  T["terms<br/>(accepts[])"] --> Sel["selectRequirement<br/>network · asset · cap"]
+  Sel --> Chain{"chain id =<br/>offer network?"}
+  Chain -- no --> E1["PaymentBuildError<br/>network_mismatch"]
+  Chain -- yes --> Disc["discoverCoins<br/>(gRPC, paged)"]
+  Disc --> Pick["selectCoins<br/>largest-first, ≤128"]
+  Pick -- "short" --> E2["InsufficientBalanceError"]
+  Pick --> Comp["merge → split → transfer<br/>ValidDuring: chain, epoch+1, nonce"]
+  Comp --> Sim["simulate once"]
+  Sim --> Gas["gas budget +20 %<br/>≤ maxGasBudget"]
+  Gas --> Chk{"payee credited<br/>≥ amount?"}
+  Chk -- no --> E3["self_check_failed"]
+  Chk -- yes --> Sign["sign"] --> Send["GET + PAYMENT-SIGNATURE"]
+```
+
 `buildPaymentTransaction({ client, sender, requirements })` is the money path
 and is exported for integrators who want the transaction without the `fetch`:
 coin discovery (`discoverCoins`), largest-first selection (`selectCoins`, up to

@@ -12,6 +12,15 @@ sellers point at their own deployment (PRD §8.16).
 
 ## What you get
 
+
+```mermaid
+flowchart LR
+  Sellers["your sellers<br/>(hono · express · next)"] -- "/verify · /settle" --> F["facilitator<br/>Fly / Railway / Docker<br/>one always-on instance"]
+  F -- "gRPC, primary" --> N1["fullnode.testnet.sui.io"]
+  F -. "gRPC, optional failover" .-> N2["your node or a trusted provider"]
+  Payers["agents (payer-sui)"] -- "paid requests" --> Sellers
+```
+
 ```
 GET  /supported   -> { kinds: [{ x402Version, scheme, network, extra: { usdc, decimals } }], extensions, signers }
 POST /verify      -> { isValid, invalidReason?, payer? }

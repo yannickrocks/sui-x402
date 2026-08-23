@@ -17,11 +17,18 @@ broadcasts the very same bytes.
 
 ## The four parties
 
-```
-Payer (agent) ──▶ Seller API ──▶ Facilitator ──▶ Sui
-  @sui-x402/         @sui-x402/      reference        gRPC
-  payer-sui          hono|express|   implementation   full node
-                     next            (unmodified)
+```mermaid
+flowchart LR
+  P["Payer (agent)<br/>@sui-x402/payer-sui<br/>holds its own key"]
+  S["Seller API<br/>hono · express · next<br/>holds nothing of the payer's"]
+  F["Facilitator<br/>reference implementation<br/>no keys, no funds"]
+  X[("Sui<br/>executes exactly once")]
+  P -- "signed transaction" --> S
+  S -- "same bytes" --> F
+  F -- "same bytes" --> X
+  X -. "digest" .-> F
+  F -. "settlement" .-> S
+  S -. "PAYMENT-RESPONSE" .-> P
 ```
 
 - **Payer** chooses an offer, builds and signs the transaction, and retries the
@@ -35,6 +42,42 @@ Payer (agent) ──▶ Seller API ──▶ Facilitator ──▶ Sui
 ## The payment lifecycle
 
 Strict mode, the default.
+
+
+```mermaid
+sequenceDiagram
+  participant A as Payer
+  participant S as Seller
+  participant F as Facilitator
+  participant X as Sui
+  rect rgb(235, 240, 250)
+    Note over A,S: A · ask the price
+    A->>S: GET /paid/quote
+    S-->>A: 402 + PAYMENT-REQUIRED
+  end
+  rect rgb(235, 240, 250)
+    Note over A,X: B · build and sign
+    A->>X: list coins · simulate split + transfer
+    X-->>A: gas used · balance changes
+    Note over A: payee credited? → sign<br/>ValidDuring: chain id, next epoch, nonce
+  end
+  rect rgb(228, 239, 255)
+    Note over A,X: C · pay, verify, settle
+    A->>S: GET + PAYMENT-SIGNATURE
+    S->>F: POST /verify (raw payload)
+    F->>X: dry-run · digest not on chain?
+    F-->>S: isValid
+    S->>F: POST /settle
+    F->>X: broadcast · wait for finality
+    X-->>F: digest
+    F-->>S: success · digest · amount
+  end
+  rect rgb(226, 244, 232)
+    Note over A,S: D · deliver
+    Note over S: handler runs — only now
+    S-->>A: 200 + PAYMENT-RESPONSE
+  end
+```
 
 **A · Ask the price.** `GET /paid/quote` → `402`. The terms are in the
 `PAYMENT-REQUIRED` header and, identically, in the JSON body. `accepts[]` lists
@@ -83,6 +126,22 @@ The reason codes are the facilitator's (`invalid_payment_requirements`,
 Use strict for anything you would not give away. On serverless hosts that
 freeze a function after the response, fast mode may never settle — use strict.
 
+
+```mermaid
+flowchart LR
+  subgraph strict["strict (default)"]
+    direction LR
+    v1[verify] --> s1[settle] --> h1[handler] --> r1["200 + PAYMENT-RESPONSE"]
+    s1 -. "fails" .-> e1["402 / 503<br/>content withheld"]
+  end
+  subgraph fast["fast"]
+    direction LR
+    v2[verify] --> h2[handler] --> r2["200 (no receipt header)"]
+    r2 --> s2["settle in background"]
+    s2 -. "fails" .-> e2["onSettleFailure<br/>content already served"]
+  end
+```
+
 ## Idempotency and retries
 
 The facilitator deduplicates settlement by transaction digest: the same signed
@@ -108,6 +167,24 @@ a full node answers "not found" for pruned history too.
 A `402` carrying `unexpected_verify_error` / `unexpected_settle_error`, or a
 `502`/`503`/`504`, is treated as a facilitator outage: resend the same bytes,
 up to twice, honouring `Retry-After` (capped at 30 s).
+
+
+What the payer does with the answer to a paid request:
+
+```mermaid
+stateDiagram-v2
+  [*] --> Sent: signed payment sent
+  Sent --> Done: 2xx / any non-402 (returned as-is)
+  Sent --> Resend: 502 · 503 · 504 · unexpected_*_error
+  Resend --> Sent: same bytes, after Retry-After (≤ 2×)
+  Sent --> Guard: 402 invalid_payment_requirements<br/>or invalid_transaction_state
+  Guard --> Rebuild: gas coin unmoved (2 reads)
+  Guard --> Rejected: gas coin moved · lookup failed
+  Rebuild --> Sent: new terms or fresh nonce (once)
+  Sent --> Rejected: any other 402
+  Rejected --> [*]: PaymentRejectedError
+  Done --> [*]
+```
 
 ## Expiry
 

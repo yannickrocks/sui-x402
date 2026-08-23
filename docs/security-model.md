@@ -2,11 +2,24 @@
 
 ## Trust boundaries
 
-```
-Payer key ─┐
-           ▼
-  payer-sui ──signed tx──▶ seller middleware ──same bytes──▶ facilitator ──same bytes──▶ Sui
-  (this repo)              (this repo)                      (upstream, unmodified)
+```mermaid
+flowchart LR
+  subgraph payer["payer's trust domain"]
+    K[("key")] --> P["payer-sui"]
+  end
+  subgraph seller["seller's domain"]
+    S["middleware"]
+    Hd["your handler"]
+  end
+  subgraph fac["facilitator (no keys, no funds)"]
+    F["verify · settle"]
+  end
+  X[("Sui")]
+  P -- "signed tx<br/>amount · payee · asset fixed by signature" --> S
+  S -- "same bytes" --> F
+  F -- "same bytes" --> X
+  F -. "settled" .-> S
+  S -. "only then" .-> Hd
 ```
 
 | Party | Holds | Can do | Cannot do |

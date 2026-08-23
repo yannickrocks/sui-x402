@@ -27,8 +27,21 @@ Every seller would have to hand-roll the money path.
 
 ## The solution
 
-```
-Agent ──@sui-x402/payer-sui──▶ Seller API ──@sui-x402/{hono,express,next}──▶ reference facilitator ──gRPC──▶ Sui
+```mermaid
+flowchart LR
+  subgraph repo["this repo"]
+    P["Agent<br/>@sui-x402/payer-sui"]
+    S["Seller API<br/>@sui-x402/hono · express · next"]
+    C["@sui-x402/core<br/>schemas · codec · seller core"]
+  end
+  F["Reference facilitator<br/>(upstream, unmodified, self-hosted)"]
+  X[("Sui<br/>gRPC full node")]
+  P -- "402 → signed tx" --> S
+  S -- "/verify · /settle<br/>bytes untouched" --> F
+  F -- "dry-run · broadcast" --> X
+  P -. "list coins · simulate" .-> X
+  S -.-> C
+  P -.-> C
 ```
 
 | Package | Role |
@@ -97,6 +110,28 @@ Full walkthrough: [docs/quickstart.md](docs/quickstart.md).
 ## How it works
 
 A paid request, strict mode:
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant A as Agent (payer)
+  participant S as Seller API
+  participant F as Facilitator
+  participant X as Sui
+  A->>S: GET /paid/quote
+  S-->>A: 402 + PAYMENT-REQUIRED (price, asset, payTo)
+  A->>X: list coins · simulate
+  X-->>A: gas · balance changes
+  Note over A: self-check, sign (chain + epoch bound)
+  A->>S: GET + PAYMENT-SIGNATURE
+  S->>F: POST /verify (bytes untouched)
+  F->>X: dry-run · replay check
+  S->>F: POST /settle
+  F->>X: broadcast · wait for finality
+  F-->>S: success · digest · amount
+  Note over S: handler runs only now
+  S-->>A: 200 + PAYMENT-RESPONSE (digest)
+```
 
 1. `GET /paid/quote` → `402` with `PAYMENT-REQUIRED` (price, asset, payee) in
    the header and the same JSON in the body.

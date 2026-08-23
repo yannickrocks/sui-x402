@@ -98,6 +98,26 @@ Wrap route handlers, not `middleware.ts` (it runs on the edge). Start Next with
 
 ## What the payer sees
 
+
+How the seller decides, per request:
+
+```mermaid
+flowchart TD
+  R[request] --> H{PAYMENT-SIGNATURE?}
+  H -- no --> P402["402 + terms"]
+  H -- unreadable --> P400["400 malformed"]
+  H -- yes --> V["POST /verify (raw payload)"]
+  V -- "outage" --> P503["503 + Retry-After"]
+  V -- "isValid: false" --> P402r["402 + reason code"]
+  V -- "invalid_transaction_state" --> St
+  V -- "isValid: true" --> M{mode}
+  M -- strict --> St["POST /settle"]
+  St -- "outage" --> P503
+  St -- "success: false" --> P402r
+  St -- "success: true" --> OK["handler → 200 + PAYMENT-RESPONSE"]
+  M -- fast --> FK["handler → 200"] --> BG["settle in background<br/>onSettled / onSettleFailure"]
+```
+
 | Status | Meaning for the payer |
 |---|---|
 | `402` + `PAYMENT-REQUIRED` | Pay these terms. The document's `error` field carries either the "header is required" message or the facilitator's reason code. |
