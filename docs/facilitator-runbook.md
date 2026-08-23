@@ -55,11 +55,10 @@ changes, digest lookup for the replay guard). A malicious or buggy endpoint
 could validate a bad payment. Therefore:
 
 1. Primary: Mysten's official `https://fullnode.testnet.sui.io:443`.
-2. Secondary: your own full node, or a paid provider you trust that serves
-   Sui gRPC. The placeholder `REPLACE-WITH-SECOND-TRUSTED-GRPC-ENDPOINT` in
-   `.env.example` / `fly.toml` must be replaced before deploying; a single
-   entry also works (no failover) if you prefer that over an untrusted second
-   node.
+2. Secondary (optional): your own full node, or a provider you trust that
+   serves Sui gRPC. `.env.example` / `fly.toml` ship the single official
+   entry (no failover); append a comma-separated second endpoint for
+   production rather than an untrusted one.
 
 ## Run locally
 
@@ -94,7 +93,7 @@ curl -s localhost:4402/health
 ```sh
 cd deploy/facilitator                          # build context must contain ./upstream
 fly launch --no-deploy --copy-config --name <your-app-name>   # first time only; keeps fly.toml
-fly secrets set SUI_TESTNET_RPC="https://fullnode.testnet.sui.io:443,https://<second-trusted-grpc>:443"
+fly secrets set SUI_TESTNET_RPC="https://fullnode.testnet.sui.io:443"   # append ,https://<second-trusted-grpc>:443 for failover
 fly deploy
 fly status && curl -s https://<your-app-name>.fly.dev/supported | jq
 ```
@@ -111,8 +110,7 @@ fly status && curl -s https://<your-app-name>.fly.dev/supported | jq
 3. Make sure the build checks out submodules (Railway's GitHub integration
    does by default; if the build fails on `upstream/package.json` missing,
    enable submodule checkout in the service's source settings).
-4. Variables: paste the contents of `.env.example` with the placeholder
-   replaced. Railway injects `PORT`; the app honours it.
+4. Variables: paste the contents of `.env.example`. Railway injects `PORT`; the app honours it.
 5. Deploy, then `curl -s https://<service>.up.railway.app/supported`.
 
 `railway.json` pins `numReplicas: 1` and the `/health` check.
