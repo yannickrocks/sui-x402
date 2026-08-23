@@ -7,3 +7,6 @@ dist/
 .DS_Store
 .claude/notes/
 coverage/
+
+# Internal material (strategy, drafts, agent run logs) — never published
+private/
