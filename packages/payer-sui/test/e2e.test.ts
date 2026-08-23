@@ -25,7 +25,9 @@ const fixture = PaymentRequired.parse(
   )
 );
 const live = fixture.accepts[0];
-const RESOURCE_URL = fixture.resource.url;
+// The public demo seller is broken today (spec-notes #12); point this at any
+// seller advertising the fixture's terms, e.g. examples/hono-server.
+const RESOURCE_URL = process.env.X402_RESOURCE_URL || fixture.resource.url;
 const USDC = live.asset;
 const AMOUNT = live.amount;
 

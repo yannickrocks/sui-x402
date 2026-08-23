@@ -12,7 +12,8 @@
         "FACILITATOR_URL",
         "PAY_TO",
         "ASSET",
-        "AMOUNT"
+        "AMOUNT",
+        "X402_RESOURCE_URL"
       ]
     }
   }

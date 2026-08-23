@@ -62,3 +62,20 @@ Live = `https://sui-facilitator.onrender.com`; pinned = submodule commit in
     50,000,000,000,000 MIST (50,000 SUI), `max_gas_price` = 50 SUI,
     `max_gas_payment_objects` = 256, `max_input_objects` = 2048. The payer
     caps gas inputs at 128.
+12. **The public demo seller cannot settle today (2026-08-23).** Paying
+    `GET https://sui-facilitator.onrender.com/signal/whales` with a valid
+    payload returns HTTP 500 `{"error":"Method not found. JSON-RPC on public
+    fullnodes has been deprecated. Please migrate to gRPC or GraphQL
+    endpoints. …"}` before anything is broadcast (payer balances unchanged).
+    The deployed demo/seller layer (`serve-all.ts`, not in the repo) still
+    calls JSON-RPC; the pinned facilitator itself is gRPC-only and settles
+    fine when run locally. Reported upstream: `docs/outbox/upstream-issue-demo-jsonrpc.md`.
+13. **First live settlements (2026-08-23, testnet, epoch 1200)** through the
+    pinned facilitator run locally: `GE85dg3wNUdfRKJpFW9bBz2qkk4qgvgihWxMrFzDfc4T`
+    (hono example), `CKYr3pP6Amrg62C9kxZX5w2UVfitDTBJeE2zjdfjnZZU` (payer-sui
+    e2e), `5MGrTQ82xhYeciurZssjTcnLvRn4rdp1wkorEJaA7bAB` (express example). Each:
+    `status.success`, `ValidDuring{maxEpoch: 1201, chain: 69WiPg…}` as built,
+    balance changes exactly +10000/−10000 USDC, gas 2,345,504 MIST at price
+    1000 for split + transfer of USDC from a single coin (budget 4,014,604 —
+    the simulation-derived budget carries ~70 % headroom over the real cost).
+    `/settle` answered `success: true` with the digest and `amount: "10000"`.
