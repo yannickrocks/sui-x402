@@ -45,6 +45,6 @@ jobs:
       - name: Live testnet payment loop (skips without PAYER_SECRET_KEY)
         if: env.PAYER_SECRET_KEY != ''
         run: |
-          pnpm --filter @sui-x402/core --filter @sui-x402/hono --filter @sui-x402/express build
+          pnpm build
           E2E=1 pnpm --filter example-hono-server test
           E2E=1 pnpm --filter example-express-server test
