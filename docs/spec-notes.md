@@ -1,4 +1,4 @@
-# Spec notes — where live behaviour and the spec diverge (hard rule 9)
+# Spec notes: where live behaviour and the spec diverge
 
 Live = `https://sui-facilitator.onrender.com`; pinned = submodule commit in
 `deploy/facilitator/UPSTREAM.md`. Fixtures in `packages/core/fixtures/`.
@@ -15,7 +15,7 @@ Live = `https://sui-facilitator.onrender.com`; pinned = submodule commit in
    keep both as open records.
 3. **Live instance advertises `sui:mainnet`**, the pinned upstream with
    `ENABLE_MAINNET` unset advertises `sui:testnet` only. Our configs never
-   set it (hard rule 3); schemas must accept either list.
+   set it by design; schemas must accept either list.
 4. **Live `/health` shape ≠ pinned `src/index.ts` shape.** Live returns
    `{ ok, facilitator: {...}, demo: {...}, uptimeSeconds }` (the Render deploy
    muxes the demo API via a `serve-all.ts` not in the repo); pinned returns

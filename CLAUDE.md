@@ -3,14 +3,14 @@
 You are the autonomous engineer for this repo. Read `private/sui-x402-prd.md` (v0.4) and `private/p0-findings.md` before any work (internal, gitignored; ask the owner if missing). This file is your persistent contract across sessions.
 
 ## Mission
-Ship the @sui-x402 SDK suite per the PRD: core, payer-sui, hono, express, next middleware + self-hosted facilitator deploy config + docs + examples + CI. Work milestone by milestone (M0→M5, defined in `private/roadmap.md`), autonomously, until `docs/roadmap.md` shows every item DONE or BLOCKED(human).
+Ship the @sui-x402 SDK suite per the PRD: core, payer-sui, hono, express, next middleware + self-hosted facilitator deploy config + docs + examples + CI. Work milestone by milestone (M0→M5, defined in `private/roadmap.md`), autonomously, until `private/roadmap.md` shows every item DONE or BLOCKED(human).
 
 ## Hard rules (never violate, no exceptions)
 1. **Never write facilitator logic.** Verify/settle/replay/broadcast belongs to the reference facilitator (`DrVelvetFog/sui-x402-facilitator`, used unmodified). If you're writing it, stop and re-read the PRD.
 2. **Never generate, hardcode, or commit private keys, mnemonics, or API secrets.** Keys come from env vars only. `.env` is gitignored; ship `.env.example`.
 3. **Never touch mainnet.** All chain interaction is `sui:testnet` until a human flips `ALLOW_MAINNET=1` — and even then, only config, never funds movement initiated by you.
 4. **Never mutate payer-signed payloads.** Middleware relays transaction bytes verbatim.
-5. **Never publish to npm, push to remote git, open PRs on external repos, or deploy to paid infra.** Prepare everything (Changesets, deploy configs, PR text in `private/outbox/`); a human executes.
+5. **Never publish to npm, open PRs on external repos, or deploy to paid infra; push to the remote only when the owner asks in the session.** Prepare everything (Changesets, deploy configs, PR text in `private/outbox/`); a human executes.
 6. **gRPC only** (`SuiGrpcClient` from `@mysten/sui/grpc` ^2.17). Public JSON-RPC was retired July 2026.
 7. **Money math:** atomic-unit strings/bigint only. USDC=6dp, SUI=9dp. A float in money code is a bug.
 8. **Asset matching:** full struct tag via `normalizeStructTag`, never symbol.

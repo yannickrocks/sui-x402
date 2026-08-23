@@ -131,7 +131,7 @@ fly status && curl -s https://<your-app-name>.fly.dev/supported | jq
 | `PORT` | `4402` | Fly/Railway inject their own; upstream reads it |
 | `SUI_TESTNET_RPC` | official fullnode | comma-separated gRPC failover list |
 | `SUI_MAINNET_RPC` | official fullnode | only read when `ENABLE_MAINNET=1` |
-| `ENABLE_MAINNET` | unset | **human-only flip**, see "Mainnet" |
+| `ENABLE_MAINNET` | unset | off by default, see "Mainnet" |
 | `RPC_TIMEOUT_MS` | `20000` | per-call timeout before failover |
 | `RATE_LIMIT` | `120` | requests per IP per minute (keyed on the last `x-forwarded-for` hop) |
 | `ENOKI_KEY` | unset | enables `/gas-station` routes; sponsor key pays gas only |
@@ -167,9 +167,9 @@ then redeploy. If `/supported` changed shape, refresh
 `packages/core/fixtures/` and re-run `pnpm test` — core's schemas are derived
 from those fixtures.
 
-## Mainnet (human-only)
+## Mainnet
 
-Not done by the agent (hard rule 3). When a human decides to enable it:
+Off by default and never enabled by tooling. To enable it deliberately:
 
 1. Read upstream's README "Networks & assets" and `PROOF.md`; confirm the
    pinned commit is the one you reviewed.
