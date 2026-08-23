@@ -10,8 +10,8 @@ primary_region = "iad"
   PORT = "4402"
   RPC_TIMEOUT_MS = "20000"
   RATE_LIMIT = "120"
-  # Second entry must be a trusted gRPC endpoint — see .env.example.
-  SUI_TESTNET_RPC = "https://fullnode.testnet.sui.io:443,https://REPLACE-WITH-SECOND-TRUSTED-GRPC-ENDPOINT:443"
+  # Single endpoint = no failover. Append a comma-separated second gRPC endpoint you trust (own node or vetted provider) for production.
+  SUI_TESTNET_RPC = "https://fullnode.testnet.sui.io:443"
 
 [http_service]
   internal_port = 4402
