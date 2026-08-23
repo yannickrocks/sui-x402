@@ -7,7 +7,7 @@ A Next.js App Router app with one paid route, `GET /api/quote`, guarded by
 
 ```sh
 cp examples/next-paywall/.env.example examples/next-paywall/.env.local   # set PAY_TO
-pnpm --filter example-next-paywall dev                                   # http://localhost:3000
+pnpm --filter example-next-paywall dev                                   # http://localhost:3000 (build:next / start for production)
 curl -i http://localhost:3000/api/quote                                  # 402 + PAYMENT-REQUIRED
 ```
 

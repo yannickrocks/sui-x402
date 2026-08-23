@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "NODE_OPTIONS=--max-http-header-size=262144 next dev",
-    "build": "next build",
+    "build:next": "next build",
     "start": "NODE_OPTIONS=--max-http-header-size=262144 next start",
     "typecheck": "tsc --noEmit -p .",
     "test": "vitest run --passWithNoTests"
