@@ -1,8 +1,8 @@
 # Quickstart — a paid API on Sui in 10 lines
 
 Time: under 15 minutes. You need Node 22, pnpm, and a facilitator URL — your
-own (`docs/facilitator-runbook.md`) or, to try things out on testnet, the public
-demo at `https://sui-facilitator.onrender.com`.
+own (`docs/facilitator-runbook.md`) or, for testnet experiments, this
+project's instance at `https://facilitator-production-1e79.up.railway.app`.
 
 ## 1. Seller: make a route payable
 
@@ -17,7 +17,7 @@ app.use("/paid/*", x402({
   amount: "10000",                                                                             // 0.01 USDC (6 decimals)
   asset: "0xa1ec7fc00a6f40db9693ad1415d0c193ad3906494428cf252621037bd7117e29::usdc::USDC",     // testnet USDC
   network: "sui:testnet",
-  facilitator: "https://sui-facilitator.onrender.com",                                         // self-host for production
+  facilitator: "https://facilitator-production-1e79.up.railway.app",                                         // self-host for production
 }));
 app.get("/paid/quote", (c) => c.json({ symbol: "SUI", quote: "1.00" }));
 serve({ fetch: app.fetch, port: 8402, serverOptions: { maxHeaderSize: 262144 } });

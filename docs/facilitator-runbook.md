@@ -8,7 +8,9 @@ commit hash and update procedure.
 
 Why self-host: the author's instance (`https://sui-facilitator.onrender.com`)
 is a free-tier Render box run by one person. Fine for dev/beta; production
-sellers point at their own deployment (PRD §8.16).
+sellers point at their own deployment (PRD §8.16). This repository's own
+instance, deployed from this config to Railway, runs at
+`https://facilitator-production-1e79.up.railway.app` (testnet).
 
 ## What you get
 

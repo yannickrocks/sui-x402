@@ -7,10 +7,10 @@ Last updated 2026-08-23.
 | Area | State |
 |---|---|
 | `@sui-x402/core`, `payer-sui`, `hono`, `express`, `next` | Complete for testnet. 346 unit and conformance tests. Not yet published to npm. |
-| Live settlement | Proven. Seven $0.01 testnet payments settled through the reference facilitator (three locally, four from CI), each verified on chain. |
+| Live settlement | Proven. Eight $0.01 testnet payments settled through the reference facilitator (three locally, four from CI, one through this project's Railway deployment), each verified on chain. |
 | CI | Typecheck and unit tests on every push; the live loop runs on pushes to `master` when `PAYER_SECRET_KEY` is configured. |
 | Mainnet | Gated. Sellers need `allowMainnet: true`; payers need the mainnet genesis digest in `chainIdentifiers` (see below). |
-| Facilitator hosting | Deployment config and runbook ready; not deployed by this project. |
+| Facilitator hosting | Deployed to Railway from `deploy/facilitator/`: `https://facilitator-production-1e79.up.railway.app` (testnet). |
 
 Digests of the first three settlements:
 [`GE85dg3w…`](https://testnet.suivision.xyz/txblock/GE85dg3wNUdfRKJpFW9bBz2qkk4qgvgihWxMrFzDfc4T),
@@ -26,7 +26,8 @@ The `E2E=1` tests pay real testnet USDC. They need:
   "Sui Testnet"). Keep it in `packages/payer-sui/.env` (gitignored); never commit it.
 - `PAY_TO`: any Sui address other than the payer's, for the example sellers.
 - A facilitator. The public demo seller is currently broken (spec-notes #12),
-  so run the pinned facilitator locally or point `FACILITATOR_URL` at your own:
+  so run the pinned facilitator locally, point `FACILITATOR_URL` at this
+  project's instance (`https://facilitator-production-1e79.up.railway.app`), or use your own:
 
 ```sh
 (cd deploy/facilitator/upstream && PORT=4402 ./node_modules/.bin/tsx src/index.ts &)
@@ -60,5 +61,5 @@ because it still calls Sui JSON-RPC, which was retired. Its `/verify` and
 ## Next
 
 1. Report the demo issue upstream.
-2. Deploy the facilitator when a persistent URL is needed ([runbook](facilitator-runbook.md)).
+2. ~~Deploy the facilitator when a persistent URL is needed~~ Done: `https://facilitator-production-1e79.up.railway.app` ([runbook](facilitator-runbook.md)).
 3. Add a `LICENSE`, make the repository public, publish with Changesets.
