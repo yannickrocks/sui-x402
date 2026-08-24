@@ -7,8 +7,9 @@ protocol: make any HTTP endpoint payable in about ten lines, and give an agent a
 reference facilitator, used unmodified and self-hosted, so nobody in this stack
 ever holds your funds or keys.
 
-> Status: **testnet, pre-1.0, not yet on npm.** Eight live payments have settled
-> end to end (see [Proof](#proof)). Mainnet is gated behind explicit opt-ins.
+> Status: **testnet, pre-1.0, not yet on npm.** The live payment loop runs on
+> every push to master; ten settlements on chain as of 2026-08-24 (see
+> [Proof](#proof)). Mainnet is gated behind explicit opt-ins.
 
 ## The problem
 
@@ -158,9 +159,10 @@ examples, the payer, and the pinned facilitator — verified on chain with exact
 [`GE85dg3w…`](https://testnet.suivision.xyz/txblock/GE85dg3wNUdfRKJpFW9bBz2qkk4qgvgihWxMrFzDfc4T)
 · [`CKYr3pP6…`](https://testnet.suivision.xyz/txblock/CKYr3pP6Amrg62C9kxZX5w2UVfitDTBJeE2zjdfjnZZU)
 · [`5MGrTQ82…`](https://testnet.suivision.xyz/txblock/5MGrTQ82xhYeciurZssjTcnLvRn4rdp1wkorEJaA7bAB).
-Five more followed: four from GitHub Actions CI runs and one through this
-project's Railway-hosted facilitator
-([`8GEYEyQn…`](https://testnet.suivision.xyz/txblock/8GEYEyQn23CqTHYard5bpiqFQm56RNFqQHQ9b9EdkDNE)).
+More settle continuously: every push to master runs the live loop in CI
+through this project's Railway-hosted facilitator — ten on chain as of
+2026-08-24, most recently
+([`7QSxe8Zu…`](https://testnet.suivision.xyz/txblock/7QSxe8Zuu4FkWMPLLEy6uczUwBZH62A2xMC9Res3S1k1)).
 The unit and conformance suites add 349 tests; the money path went through two
 internal adversarial review rounds (recorded in [docs/decisions.md](docs/decisions.md)).
 

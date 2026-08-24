@@ -100,5 +100,5 @@ proof of non-execution.
   (`packages/core/fixtures`), and a test pins the reason-code enum to the
   vendored facilitator's source.
 - The header codec produces bytes identical to the live facilitator's.
-- Eight testnet settlements verified on chain with exact balance changes,
+- Ten testnet settlements (as of 2026-08-24) verified on chain with exact balance changes,
   the expiration as built, and the pinned chain identifier.

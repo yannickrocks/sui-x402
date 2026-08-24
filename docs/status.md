@@ -7,7 +7,7 @@ Last updated 2026-08-23.
 | Area | State |
 |---|---|
 | `@sui-x402/core`, `payer-sui`, `hono`, `express`, `next` | Complete for testnet. 349 unit and conformance tests. Not yet published to npm. |
-| Live settlement | Proven. Eight $0.01 testnet payments settled through the reference facilitator (three locally, four from CI, one through this project's Railway deployment), each verified on chain. |
+| Live settlement | Proven. The live loop settles a real $0.01 testnet payment on every push to master through this project's Railway facilitator; ten settlements on chain as of 2026-08-24, each verified. |
 | CI | Typecheck and unit tests on every push; the live loop runs on pushes to `master` when `PAYER_SECRET_KEY` is configured. |
 | Mainnet | Gated. Sellers need `allowMainnet: true`; payers need the mainnet genesis digest in `chainIdentifiers` (see below). |
 | Facilitator hosting | Deployed to Railway from `deploy/facilitator/`: `https://facilitator-production-1e79.up.railway.app` (testnet). |

@@ -71,8 +71,8 @@ core itself, so "the same behaviour" is something the tests enforce.
 **Evidence over assumptions.** Schemas come from captured live responses, the
 reason-code enum is pinned to the vendored facilitator's source by a test, the
 facilitator's real behaviour is written down where it differs from the spec
-([spec-notes](spec-notes.md)), and eight payments have settled on testnet end
-to end ([status](status.md)).
+([spec-notes](spec-notes.md)), and the live loop settles a real testnet
+payment on every CI push ([status](status.md)).
 
 ## Who it is for
 
