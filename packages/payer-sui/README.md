@@ -28,9 +28,9 @@ const client = new SuiGrpcClient({
 });
 const payer = new SuiX402Payer({ client, signer: ed25519SignerFromEnv() }); // reads PAYER_SECRET_KEY
 
-// Demo resource, testnet only. Point production at your own facilitator and seller.
+// A paid route, e.g. one of the example sellers in this repo (testnet).
 const { response, receipt } = await payer.fetchWithReceipt(
-  "https://sui-facilitator.onrender.com/signal/whales"
+  "https://api.example/paid/quote"
 );
 
 console.log(await response.json());

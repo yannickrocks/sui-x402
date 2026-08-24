@@ -7,7 +7,7 @@ protocol: make any HTTP endpoint payable in about ten lines, and give an agent a
 reference facilitator, used unmodified and self-hosted, so nobody in this stack
 ever holds your funds or keys.
 
-> Status: **testnet, pre-1.0, not yet on npm.** Three live payments have settled
+> Status: **testnet, pre-1.0, not yet on npm.** Eight live payments have settled
 > end to end (see [Proof](#proof)). Mainnet is gated behind explicit opt-ins.
 
 ## The problem
@@ -158,6 +158,9 @@ examples, the payer, and the pinned facilitator — verified on chain with exact
 [`GE85dg3w…`](https://testnet.suivision.xyz/txblock/GE85dg3wNUdfRKJpFW9bBz2qkk4qgvgihWxMrFzDfc4T)
 · [`CKYr3pP6…`](https://testnet.suivision.xyz/txblock/CKYr3pP6Amrg62C9kxZX5w2UVfitDTBJeE2zjdfjnZZU)
 · [`5MGrTQ82…`](https://testnet.suivision.xyz/txblock/5MGrTQ82xhYeciurZssjTcnLvRn4rdp1wkorEJaA7bAB).
+Five more followed: four from GitHub Actions CI runs and one through this
+project's Railway-hosted facilitator
+([`8GEYEyQn…`](https://testnet.suivision.xyz/txblock/8GEYEyQn23CqTHYard5bpiqFQm56RNFqQHQ9b9EdkDNE)).
 The unit and conformance suites add 346 tests; the money path went through two
 adversarial review rounds (recorded in [docs/decisions.md](docs/decisions.md)).
 

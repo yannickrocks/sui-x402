@@ -25,8 +25,8 @@ pnpm --filter example-hono-server dev
 Every variable is documented in [`.env.example`](./.env.example). Only `PAY_TO`
 is required; `FACILITATOR_URL` defaults to `http://localhost:4402`, the
 self-hosted facilitator from [`deploy/facilitator`](../../deploy/facilitator)
-(PRD §8.16). The public testnet demo instance,
-`https://sui-facilitator.onrender.com`, is fine for a first run.
+(PRD §8.16). This project's testnet instance,
+`https://facilitator-production-1e79.up.railway.app`, is fine for a first run.
 
 The server calls `seller.assertFacilitatorSupports()` before it listens, so a
 facilitator that is down, or one that does not settle `exact` payments on your
