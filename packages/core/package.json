@@ -1,6 +1,6 @@
 {
   "name": "@sui-x402/core",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "x402 v2 protocol schemas, header codec, reason codes and the framework-agnostic seller core for Sui",
   "keywords": [
     "x402",

@@ -1,6 +1,6 @@
 {
   "name": "@sui-x402/next",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "x402 payment wrapper for Next.js route handlers on Sui",
   "keywords": [
     "x402",

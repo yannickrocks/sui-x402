@@ -1,6 +1,6 @@
 {
   "name": "@sui-x402/express",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "x402 payment middleware for Express on Sui",
   "keywords": [
     "x402",

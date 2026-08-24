@@ -1,6 +1,6 @@
 {
   "name": "@sui-x402/hono",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "x402 payment middleware for Hono on Sui",
   "keywords": [
     "x402",

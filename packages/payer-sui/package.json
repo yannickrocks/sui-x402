@@ -1,6 +1,6 @@
 {
   "name": "@sui-x402/payer-sui",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "x402 payer for Sui: coin discovery, payment transaction construction, signing and a fetch that pays",
   "keywords": [
     "x402",
