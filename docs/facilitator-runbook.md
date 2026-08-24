@@ -116,9 +116,8 @@ fly status && curl -s https://<your-app-name>.fly.dev/supported | jq
 1. New project → "Deploy from GitHub repo" → pick this repo.
 2. Service settings → **Root Directory** = `deploy/facilitator`. Railway
    reads `railway.json` there and builds the `Dockerfile`.
-3. Make sure the build checks out submodules (Railway's GitHub integration
-   does by default; if the build fails on `upstream/package.json` missing,
-   enable submodule checkout in the service's source settings).
+3. Submodules are not fetched by Railway's builder; the Dockerfile clones the
+   pinned upstream commit itself, so no extra setting is needed.
 4. Variables: paste the contents of `.env.example`. Railway injects `PORT`; the app honours it.
 5. Deploy, then `curl -s https://<service>.up.railway.app/supported`.
 
