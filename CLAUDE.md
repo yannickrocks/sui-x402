@@ -30,10 +30,34 @@ Ship the @sui-x402 SDK suite per the PRD: core, payer-sui, hono, express, next m
 - Journal entry written
 - Nothing on the hard-rules list violated
 
+## Repo map
+- `packages/core` — protocol schemas, seller core (`createSeller`), shared conformance suite (`test/seller-conformance.ts`)
+- `packages/payer-sui` — money path: coin discovery/selection, tx build, signer, payer client
+- `packages/middleware-hono|express|next` — thin adapters over the seller core
+- `examples/*` — runnable sellers; live tests behind `E2E=1`
+- `deploy/facilitator` — Dockerfile/configs for the pinned upstream (git submodule `upstream/`)
+
+## Commands
+```sh
+git submodule update --init      # deploy/facilitator/upstream
+pnpm install
+pnpm typecheck && pnpm test      # the gate
+pnpm --filter example-hono-server dev
+```
+Live-test recipe (spends real testnet USDC): docs/status.md, "Live tests".
+
 ## Environment notes
-- Testnet e2e requires a funded wallet (SUI gas + testnet USDC): env `PAYER_SECRET_KEY`. If absent → write the funding request to `private/BLOCKED.md`, keep e2e behind `E2E=1` flag, and proceed with unit/mocked tests.
-- Live facilitator for fixtures/e2e: `https://sui-facilitator.onrender.com` (testnet). Self-hosted config in `deploy/facilitator/` targets Fly/Railway but is NOT deployed by you.
+- Testnet e2e wallet is funded; `PAYER_SECRET_KEY` lives in `packages/payer-sui/.env` (gitignored). Keep e2e behind `E2E=1`.
+- Facilitator for e2e: this project's Railway instance `https://facilitator-production-1e79.up.railway.app` (testnet, deployed from `deploy/facilitator/`), or run the submodule locally: `PORT=4402 tsx src/index.ts`. The author's public demo seller is broken (docs/spec-notes.md #12).
+- Installed `@mysten/sui` is 2.26.2.
 - Fixtures live in `packages/core/fixtures/`; derive schemas from them, not from memory.
+
+## Gotchas
+- vitest does not load `.env` — `set -a; source packages/payer-sui/.env; set +a` before e2e runs.
+- turbo only passes allow-listed env vars to test tasks (`turbo.json`); new e2e vars must be added there.
+- Root `pnpm build` excludes the Next example (its script is `build:next`); CI builds `pnpm --filter "./packages/*" build`.
+- Railway injects its own `PORT` and does not fetch git submodules — the Dockerfile clones the pinned upstream commit and the service pins `PORT=4402`.
+- Payment headers reach ~256KiB; example servers set `maxHeaderSize: 262144`.
 
 ## Public vs private docs
 `docs/` is public-facing: overview, concepts, guides, security model, decisions, status, spec notes, runbook. Strategy, drafts and agent run logs live in `private/` (gitignored). Never move internal material into `docs/`.
