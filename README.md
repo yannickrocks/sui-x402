@@ -7,7 +7,7 @@ protocol: make any HTTP endpoint payable in about ten lines, and give an agent a
 reference facilitator, used unmodified and self-hosted, so nobody in this stack
 ever holds your funds or keys.
 
-> Status: **testnet, pre-1.0, not yet on npm.** The live payment loop runs on
+> Status: **testnet, v0.1.0 on npm.** The live payment loop runs on
 > every push to master; ten settlements on chain as of 2026-08-24 (see
 > [Proof](#proof)). Mainnet is gated behind explicit opt-ins.
 

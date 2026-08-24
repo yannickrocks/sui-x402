@@ -10,9 +10,6 @@ payment through the reference facilitator, and only then runs your code.
 pnpm add @sui-x402/next
 ```
 
-> Not yet on npm; the first release is imminent. Until then, clone the repo
-> and `pnpm install` to use the packages from source.
-
 ## Example
 
 `app/api/quote/route.ts`:

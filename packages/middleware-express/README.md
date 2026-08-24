@@ -16,9 +16,6 @@ belong to the facilitator; nothing here inspects a transaction.
 pnpm add @sui-x402/express express
 ```
 
-> Not yet on npm; the first release is imminent. Until then, clone the repo
-> and `pnpm install` to use the packages from source.
-
 ## Example
 
 ```ts

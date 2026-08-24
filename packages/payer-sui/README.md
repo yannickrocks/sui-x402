@@ -16,9 +16,6 @@ units, with the asset matched by full struct tag. Chain access is gRPC only
 pnpm add @sui-x402/payer-sui @mysten/sui
 ```
 
-> Not yet on npm; the first release is imminent. Until then, clone the repo
-> and `pnpm install` to use the packages from source.
-
 ## Example
 
 ```ts
