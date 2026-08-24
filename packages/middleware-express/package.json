@@ -18,5 +18,11 @@
   "devDependencies": {
     "express": "^4.21.0",
     "@types/express": "^4.17.21"
+  },
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yannickrocks/sui-x402.git",
+    "directory": "packages/middleware-express"
   }
 }

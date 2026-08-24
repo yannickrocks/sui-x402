@@ -12,5 +12,11 @@
   "dependencies": {
     "@sui-x402/core": "workspace:*",
     "hono": "^4.6.0"
+  },
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yannickrocks/sui-x402.git",
+    "directory": "packages/middleware-hono"
   }
 }

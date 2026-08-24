@@ -187,3 +187,7 @@ pnpm --filter example-hono-server dev
 ```
 
 Node 22, pnpm 9. Publishing uses [Changesets](.changeset/README.md).
+
+## License
+
+[Apache-2.0](LICENSE).

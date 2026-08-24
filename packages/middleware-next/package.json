@@ -11,5 +11,11 @@
   },
   "dependencies": {
     "@sui-x402/core": "workspace:*"
+  },
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yannickrocks/sui-x402.git",
+    "directory": "packages/middleware-next"
   }
 }
