@@ -11,8 +11,8 @@
 import { z } from "zod";
 
 // Network ids. Spec defines sui:mainnet; sui:testnet is the CAIP-2-style id the
-// reference facilitator uses. Our own config never enables mainnet (CLAUDE.md
-// rule 3) but inbound documents from the live instance legitimately carry it.
+// reference facilitator uses. This SDK never enables mainnet by default, but
+// inbound documents from the live instance legitimately carry it.
 export const SuiNetwork = z.enum(["sui:mainnet", "sui:testnet"]);
 export type SuiNetwork = z.infer<typeof SuiNetwork>;
 
@@ -29,7 +29,7 @@ export const SuiAddress = z
   .regex(/^0x[0-9a-fA-F]{1,64}$/, "sui address");
 
 // Full coin struct tag `0x<pkg>::<module>::<Name>[<...>]`. A bare symbol like
-// "USDC" is never a valid asset (CLAUDE.md rule 8).
+// "USDC" is never a valid asset.
 export const StructTag = z
   .string()
   .regex(
@@ -158,7 +158,7 @@ export const isReasonCode = (s: string): s is ReasonCode =>
   ReasonCode.safeParse(s).success;
 
 /**
- * What a payer can do about a rejection (PRD §8.11, §8.12):
+ * What a payer can do about a rejection:
  * - `refetch_terms`: server and payer disagree on requirements → GET again, pay once more
  * - `rebuild_tx`: the signed bytes are stale (expired, coins consumed) → rebuild + resign
  * - `facilitator`: not the payer's fault; back off and retry the same payload
@@ -219,7 +219,7 @@ export const encodeHeader = (o: unknown): string =>
  * document; `raw` is what `JSON.parse` produced. A relay forwards `raw` so a
  * payer-signed document reaches the facilitator byte-for-byte — zod strips keys
  * this version of the schema does not know, so `value` is safe to read and
- * never safe to forward (PRD §8.9).
+ * never safe to forward.
  *
  * Base64 is checked before decoding because `Buffer.from(s, "base64")` silently
  * drops invalid characters.

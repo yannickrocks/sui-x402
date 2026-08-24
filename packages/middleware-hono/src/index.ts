@@ -15,7 +15,7 @@
  * `x402()` never contacts the facilitator at construction: call
  * `seller.assertFacilitatorSupports()` when the app boots so a network or
  * scheme mismatch fails loudly at startup rather than once per request
- * (PRD §8.15).
+ *.
  */
 import type { MiddlewareHandler } from "hono";
 import {

@@ -22,6 +22,9 @@ header reaches the facilitator byte for byte as the payer sent it.
 pnpm add @sui-x402/hono hono
 ```
 
+> Not yet on npm; the first release is imminent. Until then, clone the repo
+> and `pnpm install` to use the packages from source.
+
 ## Example
 
 ```ts
@@ -38,7 +41,7 @@ const seller = createSeller({
   description: "Recent large SUI transfers",
 });
 
-// Fail loudly at startup, not once per request (PRD §8.15).
+// Fail loudly at startup, not once per request.
 await seller.assertFacilitatorSupports();
 
 const app = new Hono();

@@ -25,12 +25,12 @@ pnpm --filter example-hono-server dev
 Every variable is documented in [`.env.example`](./.env.example). Only `PAY_TO`
 is required; `FACILITATOR_URL` defaults to `http://localhost:4402`, the
 self-hosted facilitator from [`deploy/facilitator`](../../deploy/facilitator)
-(PRD §8.16). This project's testnet instance,
+. This project's testnet instance,
 `https://facilitator-production-1e79.up.railway.app`, is fine for a first run.
 
 The server calls `seller.assertFacilitatorSupports()` before it listens, so a
 facilitator that is down, or one that does not settle `exact` payments on your
-network, is a startup failure rather than a `503` on every request (PRD §8.15).
+network, is a startup failure rather than a `503` on every request.
 Nothing secret is read or logged here: the seller side of x402 never holds a key.
 
 ## What a caller sees

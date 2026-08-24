@@ -395,7 +395,7 @@ describe("buildPaymentTransaction — SUI asset", () => {
   });
 });
 
-describe("buildPaymentTransaction — expiration (PRD §8.12)", () => {
+describe("buildPaymentTransaction — expiration", () => {
   const wallet = (): MockOptions => ({ sui: [coin(10_000_000n, "0x2::sui::SUI")], asset: [coin(50_000n, USDC)] });
 
   it("bounds every payment to the next epoch in the bytes the node dry-runs", async () => {
@@ -441,7 +441,7 @@ describe("buildPaymentTransaction — expiration (PRD §8.12)", () => {
   });
 });
 
-describe("buildPaymentTransaction — chain identity (PRD §8.15)", () => {
+describe("buildPaymentTransaction — chain identity", () => {
   const wallet = (): MockOptions => ({ sui: [coin(10_000_000n, "0x2::sui::SUI")], asset: [coin(50_000n, USDC)] });
   const otherChain = toBase58(new Uint8Array(32).fill(3));
 

@@ -10,7 +10,7 @@
  * PAYMENT-SIGNATURE header reaches the seller exactly as it arrived.
  *
  * Node runtime only: the header codec needs `Buffer`, which the edge runtime
- * lacks (PRD §8.14). Wrap route handlers, not `middleware.ts` — that file runs
+ * lacks. Wrap route handlers, not `middleware.ts` — that file runs
  * on the edge.
  */
 import { HEADER_PAYMENT_SIGNATURE, createSeller, isSeller, type Seller, type SellerOptions } from "@sui-x402/core";

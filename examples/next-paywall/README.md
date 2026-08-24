@@ -23,7 +23,7 @@ signed payment is up to 120 KB of base64 in one header.
 
 ## Test
 
-`pnpm --filter example-next-paywall test` drives the route in-process against a
-scripted facilitator. The live 402→pay→200 loop is exercised by the hono and
-express examples' `E2E=1` tests; this route behaves identically (same seller core,
+`pnpm --filter example-next-paywall test` drives the route in-process and
+asserts the unpaid 402 branch; no facilitator is contacted. The live
+402→pay→200 loop is exercised by the hono and express examples' `E2E=1` tests; this route behaves identically (same seller core,
 same conformance suite in `@sui-x402/next`).

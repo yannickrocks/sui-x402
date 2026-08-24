@@ -1,5 +1,5 @@
 /**
- * The payer loop (PRD §8.5, §8.7, §8.11, §8.12).
+ * The payer loop.
  *
  * Ties the pieces together: read the seller's terms, choose one offer, build
  * and sign a payment, replay the request with it. The transaction bytes are
@@ -82,7 +82,7 @@ export class PaymentRejectedError extends Error {
 
 /** One extra payment per `fetch` call, whatever the seller asks for. */
 const MAX_REBUILDS = 1;
-/** Resends of the identical signed payload while the facilitator is unavailable (PRD §8.7). */
+/** Resends of the identical signed payload while the facilitator is unavailable. */
 const MAX_RESENDS = 2;
 const DEFAULT_BACKOFF_MS = [1_000, 3_000];
 const MAX_RETRY_AFTER_MS = 30_000;

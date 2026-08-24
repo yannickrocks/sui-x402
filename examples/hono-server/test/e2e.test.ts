@@ -1,5 +1,5 @@
 /**
- * The full loop against the live testnet facilitator (roadmap M3.4): the example
+ * The full loop against the live testnet facilitator: the example
  * server answers 402, `@sui-x402/payer-sui` pays it, the replay returns 200 with
  * a settlement receipt — and an unpaid request afterwards is still 402.
  *
@@ -16,8 +16,8 @@ import { ENV_PAYER_SECRET_KEY, SuiX402Payer, ed25519SignerFromEnv } from "@sui-x
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "../src/app.js";
 
-/** The public testnet demo facilitator, for the e2e only; a deployment runs its own (PRD §8.16). */
-const DEFAULT_FACILITATOR_URL = "https://sui-facilitator.onrender.com";
+/** This project's testnet facilitator; a production deployment runs its own. */
+const DEFAULT_FACILITATOR_URL = "https://facilitator-production-1e79.up.railway.app";
 const DEFAULT_ASSET =
   "0xa1ec7fc00a6f40db9693ad1415d0c193ad3906494428cf252621037bd7117e29::usdc::USDC";
 const DEFAULT_GRPC_URL = "https://fullnode.testnet.sui.io:443";

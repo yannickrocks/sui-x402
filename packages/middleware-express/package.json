@@ -1,7 +1,25 @@
 {
   "name": "@sui-x402/express",
   "version": "0.0.1",
+  "description": "x402 payment middleware for Express on Sui",
+  "keywords": [
+    "x402",
+    "sui",
+    "payments",
+    "http-402",
+    "express",
+    "middleware"
+  ],
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yannickrocks/sui-x402.git",
+    "directory": "packages/middleware-express"
+  },
   "type": "module",
+  "files": [
+    "dist"
+  ],
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
@@ -18,11 +36,5 @@
   "devDependencies": {
     "express": "^4.21.0",
     "@types/express": "^4.17.21"
-  },
-  "license": "Apache-2.0",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/yannickrocks/sui-x402.git",
-    "directory": "packages/middleware-express"
   }
 }

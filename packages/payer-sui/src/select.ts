@@ -1,5 +1,5 @@
 /**
- * accepts[] selection (PRD §8.5, §8.15).
+ * accepts[] selection.
  *
  * The payer decides which of the server's offers it is willing to pay before
  * any coin is touched: scheme, network, asset, and a per-asset cap in atomic
@@ -10,7 +10,7 @@
 import { normalizeStructTag } from "@mysten/sui/utils";
 import { StructTag, type PaymentRequirements } from "@sui-x402/core";
 
-/** Mainnet is never implicit: the SDK user must list it (CLAUDE.md rule 3). */
+/** Mainnet is never implicit: the SDK user must list it. */
 export const DEFAULT_NETWORKS: readonly string[] = ["sui:testnet"];
 
 export interface SelectOptions {
@@ -57,7 +57,7 @@ export class NoAcceptableRequirementError extends Error {
   }
 }
 
-/** A misconfigured payer must fail loudly, not silently reject every 402 (PRD §8.15). */
+/** A misconfigured payer must fail loudly, not silently reject every 402. */
 const normalizeAssetOption = (tag: string, where: string): string => {
   if (!StructTag.safeParse(tag).success) {
     throw new RangeError(`${where} is not a coin struct tag: ${tag}`);

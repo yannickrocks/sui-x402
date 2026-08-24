@@ -6,7 +6,7 @@ Last updated 2026-08-23.
 
 | Area | State |
 |---|---|
-| `@sui-x402/core`, `payer-sui`, `hono`, `express`, `next` | Complete for testnet. 346 unit and conformance tests. Not yet published to npm. |
+| `@sui-x402/core`, `payer-sui`, `hono`, `express`, `next` | Complete for testnet. 349 unit and conformance tests. Not yet published to npm. |
 | Live settlement | Proven. Eight $0.01 testnet payments settled through the reference facilitator (three locally, four from CI, one through this project's Railway deployment), each verified on chain. |
 | CI | Typecheck and unit tests on every push; the live loop runs on pushes to `master` when `PAYER_SECRET_KEY` is configured. |
 | Mainnet | Gated. Sellers need `allowMainnet: true`; payers need the mainnet genesis digest in `chainIdentifiers` (see below). |
@@ -60,6 +60,6 @@ because it still calls Sui JSON-RPC, which was retired. Its `/verify` and
 
 ## Next
 
-1. Report the demo issue upstream.
+1. ~~Report the demo issue upstream~~ Done: [sui-x402-facilitator#2](https://github.com/DrVelvetFog/sui-x402-facilitator/issues/2).
 2. ~~Deploy the facilitator when a persistent URL is needed~~ Done: `https://facilitator-production-1e79.up.railway.app` ([runbook](facilitator-runbook.md)).
-3. Add a `LICENSE`, make the repository public, publish with Changesets.
+3. Make the repository public and publish with Changesets.

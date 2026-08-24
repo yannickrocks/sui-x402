@@ -1,6 +1,5 @@
 /**
- * One seller for the whole app, configured from the environment (PRD §8.15:
- * a bad address, asset or network throws at import time, not per request).
+ * One seller for the whole app, configured from the environment.
  */
 import { createSeller, type Seller } from "@sui-x402/next";
 
@@ -18,8 +17,9 @@ export const sellerOptions = {
   amount: process.env.AMOUNT || "10000",
   asset: process.env.ASSET || TESTNET_USDC,
   network: "sui:testnet",
-  // Your self-hosted facilitator (docs/facilitator-runbook.md). The public
-  // testnet demo, https://sui-facilitator.onrender.com, works for trying it out.
+  // Your self-hosted facilitator (docs/facilitator-runbook.md). This project's
+  // testnet instance, https://facilitator-production-1e79.up.railway.app, works for
+  // trying it out.
   facilitator: process.env.FACILITATOR_URL || "http://localhost:4402",
   description: "A SUI price quote, paid per request",
   mimeType: "application/json",

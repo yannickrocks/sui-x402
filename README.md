@@ -161,8 +161,8 @@ examples, the payer, and the pinned facilitator — verified on chain with exact
 Five more followed: four from GitHub Actions CI runs and one through this
 project's Railway-hosted facilitator
 ([`8GEYEyQn…`](https://testnet.suivision.xyz/txblock/8GEYEyQn23CqTHYard5bpiqFQm56RNFqQHQ9b9EdkDNE)).
-The unit and conformance suites add 346 tests; the money path went through two
-adversarial review rounds (recorded in [docs/decisions.md](docs/decisions.md)).
+The unit and conformance suites add 349 tests; the money path went through two
+internal adversarial review rounds (recorded in [docs/decisions.md](docs/decisions.md)).
 
 ## Documentation
 

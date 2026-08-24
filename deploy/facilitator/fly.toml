@@ -1,5 +1,5 @@
-# fly deploy -c deploy/facilitator/fly.toml  (run from deploy/facilitator so the
-# Docker build context contains ./upstream). Rename `app` before first launch.
+# fly deploy -c deploy/facilitator/fly.toml — run from deploy/facilitator so
+# the Dockerfile path resolves. Rename `app` before first launch.
 app = "sui-x402-facilitator"
 primary_region = "iad"
 

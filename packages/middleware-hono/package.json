@@ -1,7 +1,25 @@
 {
   "name": "@sui-x402/hono",
   "version": "0.0.1",
+  "description": "x402 payment middleware for Hono on Sui",
+  "keywords": [
+    "x402",
+    "sui",
+    "payments",
+    "http-402",
+    "hono",
+    "middleware"
+  ],
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yannickrocks/sui-x402.git",
+    "directory": "packages/middleware-hono"
+  },
   "type": "module",
+  "files": [
+    "dist"
+  ],
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
@@ -12,11 +30,5 @@
   "dependencies": {
     "@sui-x402/core": "workspace:*",
     "hono": "^4.6.0"
-  },
-  "license": "Apache-2.0",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/yannickrocks/sui-x402.git",
-    "directory": "packages/middleware-hono"
   }
 }

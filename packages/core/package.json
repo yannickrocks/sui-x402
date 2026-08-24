@@ -1,7 +1,24 @@
 {
   "name": "@sui-x402/core",
   "version": "0.0.1",
+  "description": "x402 v2 protocol schemas, header codec, reason codes and the framework-agnostic seller core for Sui",
+  "keywords": [
+    "x402",
+    "sui",
+    "payments",
+    "http-402",
+    "micropayments"
+  ],
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yannickrocks/sui-x402.git",
+    "directory": "packages/core"
+  },
   "type": "module",
+  "files": [
+    "dist"
+  ],
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
@@ -11,11 +28,5 @@
   },
   "dependencies": {
     "zod": "^3.23.0"
-  },
-  "license": "Apache-2.0",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/yannickrocks/sui-x402.git",
-    "directory": "packages/core"
   }
 }

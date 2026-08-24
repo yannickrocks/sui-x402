@@ -1,5 +1,5 @@
 /**
- * Payment transaction construction (PRD §8.2, §8.12, §8.15, §8.17 seam).
+ * Payment transaction construction.
  *
  * Everything that decides what leaves the payer's wallet lives here:
  * coin → merge → split → transfer, gas coins, gas budget, expiration. The
@@ -218,7 +218,7 @@ export async function buildPaymentTransaction(opts: BuildPaymentOptions): Promis
   tx.transferObjects([paid], payTo);
 
   // Gas coins cover the amount plus up to maxGasBudget of gas, and the same
-  // set is simulated and signed, so the smashing rebate in the estimate is the
+  // set is simulated and signed, so the storage rebate in the estimate is the
   // one the network will apply.
   const reserve = paysInSui ? amount : 0n;
   const available = sortLargestFirst(suiCoins)

@@ -122,7 +122,7 @@ const facilitatorRequest = (body: unknown) => ({
 
 // --- configuration ----------------------------------------------------------
 
-describe("createSeller fails loudly at startup (PRD §8.15)", () => {
+describe("createSeller fails loudly at startup", () => {
   it.each<[string, Partial<SellerOptions>, string]>([
     ["a bare symbol asset", { asset: "USDC" }, "asset"],
     ["a zero amount", { amount: "0" }, "amount"],
@@ -278,7 +278,7 @@ describe("handle relays the payment to the facilitator", () => {
   });
 });
 
-describe("handle answers 503 rather than fulfilling unpaid content (PRD §8.7)", () => {
+describe("handle answers 503 rather than fulfilling unpaid content", () => {
   it.each<[string, Route, string]>([
     ["the request never leaves", refuses, "unreachable"],
     ["the facilitator answers 500", sends("boom", 500), "http"],
@@ -339,7 +339,7 @@ describe("handle answers 503 rather than fulfilling unpaid content (PRD §8.7)",
   });
 });
 
-describe("strict mode settles before the handler may run (PRD §8.6, §8.8)", () => {
+describe("strict mode settles before the handler may run", () => {
   it("fulfills with the settlement in PAYMENT-RESPONSE", async () => {
     const { decide } = paid({ verify: replies({ isValid: true }), settle: replies(SETTLE_OK) });
     const decision = fulfill(await decide());
@@ -381,7 +381,7 @@ describe("strict mode settles before the handler may run (PRD §8.6, §8.8)", ()
   });
 });
 
-describe("fast mode settles after the handler (PRD §8.6)", () => {
+describe("fast mode settles after the handler", () => {
   it("fulfills on a valid verify and settles only when settleAfter is called", async () => {
     const { decide, calls } = paid(
       { verify: replies({ isValid: true }), settle: replies(SETTLE_OK) },

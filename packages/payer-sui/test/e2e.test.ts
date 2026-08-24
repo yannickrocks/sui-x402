@@ -1,5 +1,5 @@
 /**
- * Live testnet payment against the demo resource (roadmap M2.7).
+ * Live testnet payment against a real seller advertising the fixture's terms.
  *
  * Runs only with `E2E=1` and a funded `PAYER_SECRET_KEY`; the wallet is funded
  * by a human (docs/status.md), so by default this file skips and says why.
@@ -25,9 +25,10 @@ const fixture = PaymentRequired.parse(
   )
 );
 const live = fixture.accepts[0];
-// The public demo seller is broken today (spec-notes #12); point this at any
-// seller advertising the fixture's terms, e.g. examples/hono-server.
-const RESOURCE_URL = process.env.X402_RESOURCE_URL || fixture.resource.url;
+// The fixture's demo seller is broken (docs/spec-notes.md #12), so the target
+// is explicit: any seller advertising the fixture's terms, e.g. a local
+// examples/hono-server.
+const RESOURCE_URL = process.env.X402_RESOURCE_URL ?? "";
 const USDC = live.asset;
 const AMOUNT = live.amount;
 
@@ -36,7 +37,9 @@ const TIMEOUT_MS = 120_000;
 const explorerUrl = (digest: string): string =>
   `https://testnet.suivision.xyz/txblock/${digest}`;
 
-const missing = ["E2E", ENV_PAYER_SECRET_KEY].filter((name) => !process.env[name]);
+const missing = ["E2E", ENV_PAYER_SECRET_KEY, "X402_RESOURCE_URL"].filter(
+  (name) => !process.env[name]
+);
 
 if (missing.length > 0) {
   console.log(

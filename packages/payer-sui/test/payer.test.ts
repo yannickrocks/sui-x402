@@ -458,7 +458,7 @@ describe("SuiX402Payer.fetchWithReceipt — happy path", () => {
   });
 });
 
-describe("SuiX402Payer — a second 402 (PRD §8.11, §8.12)", () => {
+describe("SuiX402Payer — a second 402", () => {
   const drifted = withRaw(live, { amount: "20000" });
 
   it("refetches drifted terms once and pays the new amount", async () => {
@@ -621,7 +621,7 @@ describe("SuiX402Payer — a second 402 (PRD §8.11, §8.12)", () => {
     expect(calls).toHaveLength(2);
   });
 
-  it("resends the identical payload after a 503, honouring Retry-After (PRD §8.7, §8.9)", async () => {
+  it("resends the identical payload after a 503, honouring Retry-After", async () => {
     const boom = new Response("facilitator down", { status: 503, headers: { "retry-after": "5" } });
     const { payer, calls, signed, delays } = setup([required(terms()), boom, new Response("paid", { status: 200 })]);
 

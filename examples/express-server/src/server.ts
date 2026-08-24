@@ -9,9 +9,10 @@ import { createSeller } from "@sui-x402/express";
 import { createApp } from "./app.js";
 
 /**
- * Self-hosted facilitator (PRD §8.16). The public testnet demo instance
- * `https://sui-facilitator.onrender.com` works for a first run, but production
- * deployments run their own — see `docs/facilitator-runbook.md`.
+ * Self-hosted facilitator. This project's testnet instance
+ * `https://facilitator-production-1e79.up.railway.app` works for a first
+ * run, but production deployments run their own — see
+ * `docs/facilitator-runbook.md`.
  */
 const DEFAULT_FACILITATOR_URL = "http://localhost:4402";
 /** Testnet USDC, 6 decimals (packages/core/fixtures/demo-402.payment-required.json). */
@@ -52,7 +53,7 @@ const seller = createSeller({
   mimeType: "application/json",
 });
 
-// PRD §8.15: a wrong network, a wrong scheme or a dead facilitator is a boot
+// A wrong network, a wrong scheme or a dead facilitator is a boot
 // failure, not a 503 on every request.
 await seller.assertFacilitatorSupports();
 

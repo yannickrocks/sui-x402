@@ -4,7 +4,7 @@
 For development, the pinned facilitator runs locally in one command
 ([status.md](status.md)). For anything public, self-host it with
 `deploy/facilitator` — it is a deploy, not a port. The author's public demo
-instance is not a production dependency (PRD §8.16).
+instance is not a production dependency.
 
 **Does anyone hold my funds?**
 No. The payer signs a complete transaction; the seller relays it; the
@@ -39,8 +39,8 @@ Sui retired public JSON-RPC in July 2026. Every chain call here goes through
 
 **What is the testnet network id?**
 `sui:testnet`. The x402 spec only names `sui:mainnet`; the reference facilitator
-and this SDK both use `sui:testnet`, and a spec proposal is drafted in
-the project's outbox.
+and this SDK both use `sui:testnet`, and formalizing the testnet
+identifier in the spec is planned.
 
 **How is this different from `@t2000/serve`?**
 t2000 ships a Sui x402 dialect for its agent marketplace: v1-style

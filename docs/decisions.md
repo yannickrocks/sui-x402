@@ -87,10 +87,9 @@ fulfils only on `success: true`.
 
 ## Review rounds
 
-The money path (`packages/payer-sui`) went through two adversarial review
-rounds with three independent lenses each (correctness, security and rules,
-protocol conformance), and the seller side through one. Seventeen findings
-were raised; all were fixed or are listed as known limitations in
+The money path (`packages/payer-sui`) went through two structured internal
+reviews (correctness, security, protocol conformance) and the seller side
+through one. Seventeen findings were raised; every one was fixed or are listed as known limitations in
 [status.md](status.md). Two were confirmed against the live network before
 fixing: timestamp expiry is unsupported, and "transaction not found" is not
 proof of non-execution.
@@ -101,5 +100,5 @@ proof of non-execution.
   (`packages/core/fixtures`), and a test pins the reason-code enum to the
   vendored facilitator's source.
 - The header codec produces bytes identical to the live facilitator's.
-- Seven testnet settlements verified on chain with exact balance changes,
+- Eight testnet settlements verified on chain with exact balance changes,
   the expiration as built, and the pinned chain identifier.

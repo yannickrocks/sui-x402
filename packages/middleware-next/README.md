@@ -10,6 +10,9 @@ payment through the reference facilitator, and only then runs your code.
 pnpm add @sui-x402/next
 ```
 
+> Not yet on npm; the first release is imminent. Until then, clone the repo
+> and `pnpm install` to use the packages from source.
+
 ## Example
 
 `app/api/quote/route.ts`:
@@ -43,7 +46,7 @@ An agent pays it with `@sui-x402/payer-sui`; `curl -i` shows the 402 and its
 
 ## Notes
 
-**Node runtime, route handlers only (PRD §8.14).** `export const runtime =
+**Node runtime, route handlers only.** `export const runtime =
 "nodejs"` in every wrapped route file. Do not wrap `middleware.ts`: it runs on
 the edge runtime, where the header codec's `Buffer` does not exist.
 

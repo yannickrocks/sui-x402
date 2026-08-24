@@ -1,5 +1,5 @@
 /**
- * Coin discovery and selection for the payer (PRD §8.1, §8.4).
+ * Coin discovery and selection for the payer.
  *
  * Pure money-path helpers: every balance is a bigint or an atomic-unit
  * string; the asset is matched by normalized struct tag, never by symbol.

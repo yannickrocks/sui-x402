@@ -1,5 +1,5 @@
 /**
- * The seller half of x402, with no framework in it (PRD §8.6–§8.9, §8.15).
+ * The seller half of x402, with no framework in it.
  *
  * `createSeller` owns every decision a paywall makes: what a 402 says, when a
  * payment header is malformed, when the facilitator is unavailable, and whether
@@ -297,7 +297,7 @@ export function createSeller(options: SellerOptions): Seller {
     } catch (e) {
       if (!(e instanceof FacilitatorError)) throw e;
       // The payer resends the identical payload; the facilitator dedupes by
-      // digest, so a retry cannot pay twice (PRD §8.7, §8.9).
+      // digest, so a retry cannot pay twice.
       return unavailable(e);
     }
     if (!settle.success) return askForPayment(url, settle.errorReason ?? "unexpected_settle_error");

@@ -16,6 +16,9 @@ units, with the asset matched by full struct tag. Chain access is gRPC only
 pnpm add @sui-x402/payer-sui @mysten/sui
 ```
 
+> Not yet on npm; the first release is imminent. Until then, clone the repo
+> and `pnpm install` to use the packages from source.
+
 ## Example
 
 ```ts
@@ -135,8 +138,9 @@ schema before the header is sent, so a transaction whose base64 exceeds
 `MAX_TRANSACTION_BASE64_CHARS` (120,000 chars, the reference facilitator's limit)
 fails locally instead of being rejected as a malformed header.
 
-**Live e2e.** `test/e2e.test.ts` pays 0.01 testnet USDC to a live demo resource.
-It skips unless `E2E` and `PAYER_SECRET_KEY` are both set; `SUI_GRPC_URL`
-overrides the default full node and `X402_RESOURCE_URL` retargets it at any
-seller advertising the same terms (the public demo is broken, spec-notes #12). See `.env.example` and `docs/status.md` —
-vitest does not load `.env` on its own.
+**Live e2e.** `test/e2e.test.ts` pays 0.01 testnet USDC to a live seller. It
+skips unless `E2E`, `PAYER_SECRET_KEY` and `X402_RESOURCE_URL` are all set.
+Point `X402_RESOURCE_URL` at any seller advertising the fixture's terms (for
+example the hono example server); `SUI_GRPC_URL` overrides the default full
+node. See `.env.example` and `docs/status.md`; vitest does not load `.env` on
+its own.

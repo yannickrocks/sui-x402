@@ -52,7 +52,7 @@ describe("header codec round-trip", () => {
   });
 });
 
-describe("malformed headers (PRD §8.10) fail with a typed reason, never a raw throw", () => {
+describe("malformed headers fail with a typed reason, never a raw throw", () => {
   it.each<[string, string, string]>([
     ["empty string", "", "empty"],
     ["unpadded base64", "AAA", "not_base64"],
@@ -99,7 +99,7 @@ describe("malformed headers (PRD §8.10) fail with a typed reason, never a raw t
   });
 });
 
-describe("decodeHeaderVerbatim keeps what the schema strips (PRD §8.9)", () => {
+describe("decodeHeaderVerbatim keeps what the schema strips", () => {
   const withUnknownKeys = {
     ...payload,
     accepted: { ...requirements, extra: { x: "payer-supplied" } },

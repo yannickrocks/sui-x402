@@ -8,7 +8,7 @@ commit hash and update procedure.
 
 Why self-host: the author's instance (`https://sui-facilitator.onrender.com`)
 is a free-tier Render box run by one person. Fine for dev/beta; production
-sellers point at their own deployment (PRD §8.16). This repository's own
+sellers point at their own deployment. This repository's own
 instance, deployed from this config to Railway, runs at
 `https://facilitator-production-1e79.up.railway.app` (testnet).
 
@@ -50,7 +50,8 @@ station. Semantic failures are HTTP 200 with `isValid:false` /
 
 - Node 22+ and Docker (for the image); `flyctl` or the Railway CLI for deploys
 - Submodule initialised: `git submodule update --init deploy/facilitator/upstream`
-- A **second trusted gRPC endpoint** for failover (see next section)
+- Optional, recommended for production: a second trusted gRPC endpoint for
+  failover (see next section)
 
 ## gRPC endpoints and failover
 
@@ -120,7 +121,9 @@ fly status && curl -s https://<your-app-name>.fly.dev/supported | jq
    reads `railway.json` there and builds the `Dockerfile`.
 3. Submodules are not fetched by Railway's builder; the Dockerfile clones the
    pinned upstream commit itself, so no extra setting is needed.
-4. Variables: paste the contents of `.env.example`. Railway injects `PORT`; the app honours it.
+4. Variables: paste the contents of `.env.example` except `PORT` — Railway
+   injects its own and the app honours it. If you do set `PORT`, make the
+   domain's target port match it.
 5. Deploy, then `curl -s https://<service>.up.railway.app/supported`.
 
 `railway.json` pins `numReplicas: 1` and the `/health` check.
@@ -156,7 +159,7 @@ fly status && curl -s https://<your-app-name>.fly.dev/supported | jq
 - **Fails closed on RPC outage.** If every endpoint is unreachable the replay
   guard throws rather than treating "unknown" as "not executed"; `/verify`
   returns `isValid:false` with an `unexpected_verify_error` reason. Seller
-  middleware should respond 503 + `Retry-After` (PRD §8.7).
+  middleware should respond 503 + `Retry-After`.
 - **Logs** are stdout (`fly logs` / Railway log tab). Transport failovers log
   `rpc endpoint N failed (...); trying next`.
 - **Body cap** 256 KB; signed payment txs are 2–6 KB.

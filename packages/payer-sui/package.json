@@ -1,7 +1,25 @@
 {
   "name": "@sui-x402/payer-sui",
   "version": "0.0.1",
+  "description": "x402 payer for Sui: coin discovery, payment transaction construction, signing and a fetch that pays",
+  "keywords": [
+    "x402",
+    "sui",
+    "payments",
+    "http-402",
+    "agent",
+    "micropayments"
+  ],
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yannickrocks/sui-x402.git",
+    "directory": "packages/payer-sui"
+  },
   "type": "module",
+  "files": [
+    "dist"
+  ],
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
@@ -13,11 +31,5 @@
     "@sui-x402/core": "workspace:*",
     "zod": "^3.23.0",
     "@mysten/sui": "^2.17.0"
-  },
-  "license": "Apache-2.0",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/yannickrocks/sui-x402.git",
-    "directory": "packages/payer-sui"
   }
 }

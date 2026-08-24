@@ -1,7 +1,7 @@
 /**
  * The paid route, driven in-process: the real `withX402` wrapper around the
- * real handler, with the facilitator scripted. Running `next dev` is not
- * needed to prove the paywall; the hono/express examples cover the live loop.
+ * real handler, asserting the unpaid 402 branch — no facilitator is contacted.
+ * The hono/express examples' e2e tests cover the live paid loop.
  */
 import { beforeAll, describe, expect, it } from "vitest";
 import { HEADER_PAYMENT_REQUIRED, PaymentRequired, decodeHeader } from "@sui-x402/core";

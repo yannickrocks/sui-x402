@@ -19,6 +19,7 @@ export {
   buildPaymentTransaction,
   computeGasBudget,
   receivedBy,
+  CHAIN_IDENTIFIERS,
   PaymentBuildError,
   DEFAULT_GAS_HEADROOM_PERCENT,
   DEFAULT_MAX_GAS_BUDGET,

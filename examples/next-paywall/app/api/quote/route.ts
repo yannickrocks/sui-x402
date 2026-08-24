@@ -1,7 +1,7 @@
 import { withX402 } from "@sui-x402/next";
 import { seller } from "../../../lib/seller";
 
-// The header codec needs Buffer; the edge runtime has none (PRD §8.14).
+// The header codec needs Buffer; the edge runtime has none.
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 

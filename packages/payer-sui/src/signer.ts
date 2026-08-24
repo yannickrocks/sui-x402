@@ -1,5 +1,5 @@
 /**
- * Signer seam (PRD §8.13). The payer only needs an address and a function
+ * Signer seam. The payer only needs an address and a function
  * from transaction bytes to a serialized Sui signature; `KeypairSigner` adapts
  * any `@mysten/sui` `Signer` (Ed25519, Secp256k1/r1, MultiSig, ZkLoginSigner).
  * Secret key material never appears in error messages.
