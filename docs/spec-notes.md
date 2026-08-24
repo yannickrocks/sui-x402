@@ -70,6 +70,9 @@ Live = `https://sui-facilitator.onrender.com`; pinned = submodule commit in
     The deployed demo/seller layer (`serve-all.ts`, not in the repo) still
     calls JSON-RPC; the pinned facilitator itself is gRPC-only and settles
     fine when run locally. Reported upstream to the facilitator's author.
+    **Resolved upstream (2026-08-24):** the author moved the demo's data fetch
+    to Sui GraphQL and redeployed the same day. Verified live: paying the demo
+    settled `F1YSaQdcFiMgV364osSCDAVNuD4tPPPAQtZVXMACh39k` on chain.
 13. **First live settlements (2026-08-23, testnet, epoch 1200)** through the
     pinned facilitator run locally: `GE85dg3wNUdfRKJpFW9bBz2qkk4qgvgihWxMrFzDfc4T`
     (hono example), `CKYr3pP6Amrg62C9kxZX5w2UVfitDTBJeE2zjdfjnZZU` (payer-sui
