@@ -38,9 +38,11 @@ Sui retired public JSON-RPC in July 2026. Every chain call here goes through
 `SuiGrpcClient`, including the facilitator's.
 
 **What is the testnet network id?**
-`sui:testnet`. The x402 spec only names `sui:mainnet`; the reference facilitator
-and this SDK both use `sui:testnet`, and formalizing the testnet
-identifier in the spec is planned.
+`sui:testnet`. The Sui exact-scheme spec under review
+(x402-foundation/x402 PR #3081) defines `sui:mainnet`, `sui:testnet` and
+`sui:devnet`; this SDK and the reference facilitator both already use
+`sui:testnet`. The remaining gap is that the x402 network registry doc does
+not list Sui yet, which is being addressed alongside that spec PR.
 
 **How is this different from `@t2000/serve`?**
 t2000 ships a Sui x402 dialect for its agent marketplace: v1-style
