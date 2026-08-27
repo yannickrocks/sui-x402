@@ -23,6 +23,7 @@ export {
   PaymentBuildError,
   DEFAULT_GAS_HEADROOM_PERCENT,
   DEFAULT_MAX_GAS_BUDGET,
+  PROTOCOL_MAX_TX_GAS,
   type BuildPaymentOptions,
   type BuiltPayment,
   type PaymentClient,
@@ -32,6 +33,22 @@ export {
   type GasCostSummary,
   type BalanceChange,
 } from "./tx.js";
+export {
+  buildSponsoredPaymentKind,
+  sponsorPayment,
+  type BuildSponsoredPaymentOptions,
+  type BuiltSponsoredPayment,
+  type SponsorPaymentOptions,
+  type SponsoredPaymentKind,
+} from "./tx-sponsored.js";
+export {
+  GasStationError,
+  httpGasStation,
+  type GasStationClient,
+  type GasStationErrorKind,
+  type SponsorRequest,
+  type SponsorResult,
+} from "./gas-station.js";
 export {
   KeypairSigner,
   SignerConfigError,
@@ -51,6 +68,7 @@ export {
 export {
   SuiX402Payer,
   PaymentRejectedError,
+  PayerConfigError,
   type SuiX402PayerOptions,
   type PaymentReceipt,
   type SentPayment,

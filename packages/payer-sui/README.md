@@ -55,6 +55,28 @@ const capped = new SuiX402Payer({
 });
 ```
 
+### Gasless (sponsored) payments
+
+A payer holding USDC but zero SUI can pay through the facilitator's gas
+station. Off by default; the gas station must be the same facilitator
+deployment the seller settles through ([guide](../../docs/guides/gasless.md)):
+
+```ts
+const gasless = new SuiX402Payer({
+  client,
+  signer: ed25519SignerFromEnv(),
+  gasless: "auto", // self-funded when SUI allows; sponsored when only gas is missing
+  gasStation: process.env.GAS_STATION_URL!, // a URL, not a secret
+});
+```
+
+The sponsor fills gas only. Before signing, the payer verifies the sponsor
+changed nothing else: identical transaction kind, payer still the sender, a
+non-payer gas owner, sane budget, matching digest, and a fresh simulation
+crediting the seller in full. End-to-end sponsored _settlement_ additionally
+needs an upstream facilitator change that is not merged yet — until then the
+option is useful for testing and stays safely inert in production.
+
 ## API
 
 Everything exported from the package entry point.
@@ -62,7 +84,7 @@ Everything exported from the package entry point.
 | Export                         | Kind      | What it does                                                                                                                                                               |
 | ------------------------------ | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `SuiX402Payer`                 | class     | The paying `fetch`. `fetch(input, init)` → `Response`; `fetchWithReceipt(input, init)` → `{ response, receipt }`.                                                          |
-| `SuiX402PayerOptions`          | type      | `client`, `signer`, and the optional `select`, `fetch`, `now`, `sleep`, `gasHeadroomPercent`, `maxGasBudget`, `chainIdentifiers`.                                                                       |
+| `SuiX402PayerOptions`          | type      | `client`, `signer`, and the optional `select`, `fetch`, `now`, `sleep`, `gasHeadroomPercent`, `maxGasBudget`, `chainIdentifiers`.                                          |
 | `PaymentReceipt`               | type      | What the seller reported in `PAYMENT-RESPONSE`: `digest`, `payer`, `amount`, `network`, the `accepted` offer, and the raw `settle` response.                               |
 | `PaymentRejectedError`         | class     | The seller answered 402 to a paid request and the payer will not pay again. Carries `reason`, `retryHint` and the `response`.                                              |
 | `selectRequirement`            | function  | `(accepts, options?)` → the first offer in server order matching scheme, network, asset and cap. Returns it by reference, unmodified.                                      |
@@ -72,11 +94,11 @@ Everything exported from the package entry point.
 | `RejectedRequirement`          | type      | One rejection: `{ index, reason, requirement }`.                                                                                                                           |
 | `DEFAULT_NETWORKS`             | const     | `["sui:testnet"]`. Mainnet is never implicit.                                                                                                                              |
 | `buildPaymentTransaction`      | function  | Builds, simulates, sizes gas for and self-checks one payment transaction. Returns `BuiltPayment`; never signs.                                                             |
-| `BuildPaymentOptions`          | type      | `client`, `sender`, `requirements`, plus `gasHeadroomPercent`, `maxGasBudget`, `chainIdentifiers`.                                                                       |
-| `BuiltPayment`                 | type      | `bytes`, `digest`, `sender`, `payTo`, `asset`, `amount` (bigint), `gasPrice`, `gasBudget`, `gasCoin`, `expiresAfterEpoch`.                                                                  |
+| `BuildPaymentOptions`          | type      | `client`, `sender`, `requirements`, plus `gasHeadroomPercent`, `maxGasBudget`, `chainIdentifiers`.                                                                         |
+| `BuiltPayment`                 | type      | `bytes`, `digest`, `sender`, `payTo`, `asset`, `amount` (bigint), `gasPrice`, `gasBudget`, `gasCoin`, `expiresAfterEpoch`.                                                 |
 | `PaymentClient`                | interface | The slice of `SuiGrpcClient` the payer needs: `listCoins`, `getReferenceGasPrice`, `getChainIdentifier`, `simulateTransaction`. `SuiGrpcClient` satisfies it structurally. |
 | `PaymentBuildError`            | class     | Build refused before signing. `reason` is a `PaymentBuildReason`.                                                                                                          |
-| `PaymentBuildReason`           | type      | `"network_mismatch" \| "simulation_failed" \| "gas_budget_exceeded" \| "self_check_failed"`.                                                                                        |
+| `PaymentBuildReason`           | type      | `"network_mismatch" \| "simulation_failed" \| "gas_budget_exceeded" \| "self_check_failed"`.                                                                               |
 | `computeGasBudget`             | function  | `(gasUsed, gasPrice, headroomPercent)` → budget in MIST, using the Sui SDK's formula.                                                                                      |
 | `receivedBy`                   | function  | `(balanceChanges, payTo, asset)` → atomic units credited, or `null` when nothing matched. The pre-sign self-check.                                                         |
 | `DEFAULT_GAS_HEADROOM_PERCENT` | const     | `20`.                                                                                                                                                                      |
@@ -110,7 +132,7 @@ gas coin twice, 1.5 s apart: it must still be at the version that was signed,
 which proves that payment never executed (a transaction lookup cannot — full
 nodes answer "not found" for pruned history too). A moved coin or a failed
 lookup ends the call with `PaymentRejectedError`. A facilitator outage
-(502/503/504, or a 402 carrying `unexpected_*_error`) resends the *same* signed
+(502/503/504, or a 402 carrying `unexpected_*_error`) resends the _same_ signed
 payload after `Retry-After` (default 1 s then 3 s, at most twice); the
 facilitator dedupes by digest, so that can never pay twice. Every other answer
 is returned to you as-is. `fetchWithReceipt` also returns `sent` — the digest

@@ -85,6 +85,19 @@ fallthrough, a payer resending after a lost settle response could never
 redeem a payment it had made. The seller now settles on that one code and
 fulfils only on `success: true`.
 
+**D14 · Gasless rides the facilitator's gas station; the SDK holds no sponsor key.**
+Four designs were considered for sponsored payments. Client-side Enoki
+integration would put a sponsor credential in the payer — a key the SDK must
+never hold. Extending the facilitator was ruled out by the reuse rule
+(hard rule 1). The chosen shape — payer builds a transaction kind, the
+facilitator's existing `/gas-station` sponsors it, the payer validates and
+signs, settle broadcasts — reuses a shipped, tested capability, even though a
+seller-side alternative would have been the smaller upstream diff. The one
+property lost is settle's in-flight dedupe cache for sponsored bytes; the
+prior-on-chain path still re-asserts the payee's credit against execution
+truth. SUI-denominated payments are excluded: sourced from the sponsor's gas
+coin, they leave no payer-owned input to prove non-execution with.
+
 ## Review rounds
 
 The money path (`packages/payer-sui`) went through two structured internal

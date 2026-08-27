@@ -7,7 +7,7 @@
  * what the server sent back, and nothing is signed before the offer passes
  * selection and the built transaction passes its own self-check.
  */
-import { toBase64 } from "@mysten/sui/utils";
+import { SUI_TYPE_ARG, normalizeStructTag, toBase64 } from "@mysten/sui/utils";
 import {
   HEADER_PAYMENT_REQUIRED,
   HEADER_PAYMENT_RESPONSE,
@@ -21,13 +21,30 @@ import {
   decodeHeaderVerbatim,
   encodeHeader,
   retryHint,
+  SUI_GAS_STATION_EXTRA,
+  SUI_SPONSOR_EXTENSION,
   type PaymentRequirements,
   type Resource,
   type RetryHint,
 } from "@sui-x402/core";
+import { InsufficientBalanceError, type CoinRef } from "./coins.js";
+import {
+  GasStationError,
+  httpGasStation,
+  type GasStationClient,
+} from "./gas-station.js";
 import { type SelectOptions, selectRequirement } from "./select.js";
 import type { PayerSigner } from "./signer.js";
-import { type BuiltPayment, type PaymentClient, buildPaymentTransaction } from "./tx.js";
+import {
+  type BuiltPayment,
+  type PaymentClient,
+  buildPaymentTransaction,
+} from "./tx.js";
+import {
+  type BuiltSponsoredPayment,
+  buildSponsoredPaymentKind,
+  sponsorPayment,
+} from "./tx-sponsored.js";
 
 export interface SuiX402PayerOptions {
   client: PaymentClient;
@@ -44,6 +61,23 @@ export interface SuiX402PayerOptions {
   maxGasBudget?: bigint;
   /** Genesis digests per network, extending the pinned `CHAIN_IDENTIFIERS`. */
   chainIdentifiers?: Readonly<Record<string, string>>;
+  /**
+   * `"never"` (default): the self-funded path only.
+   * `"auto"`: self-funded, falling back to sponsored only when the SUI *gas*
+   *   floor is what failed.
+   * `"always"`: sponsored only; never spends the payer's SUI on gas.
+   */
+  gasless?: "never" | "auto" | "always";
+  /** Gas-station base URL, or a client. Required unless `gasless` is `"never"`. */
+  gasStation?: string | GasStationClient;
+}
+
+/** The payer options contradict themselves; nothing was signed or sent. */
+export class PayerConfigError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PayerConfigError";
+  }
 }
 
 export interface PaymentReceipt {
@@ -70,11 +104,13 @@ export class PaymentRejectedError extends Error {
     readonly reason: string,
     readonly retryHint: RetryHint,
     readonly response: Response,
-    detail?: string,
+    detail?: string
   ) {
     super(
-      `payment rejected: ${reason === "" ? "402 carried no reason code" : reason} (retry hint: ${retryHint})` +
-        (detail === undefined ? "" : `: ${detail}`),
+      `payment rejected: ${
+        reason === "" ? "402 carried no reason code" : reason
+      } (retry hint: ${retryHint})` +
+        (detail === undefined ? "" : `: ${detail}`)
     );
     this.name = "PaymentRejectedError";
   }
@@ -91,7 +127,8 @@ const RECHECK_MS = 1_500;
 
 /** The 402 body, parsed as JSON, unless it is larger than a header may be. */
 const readBoundedJson = async (response: Response): Promise<unknown> => {
-  if (Number(response.headers.get("content-length") ?? "0") > MAX_HEADER_CHARS) return null;
+  if (Number(response.headers.get("content-length") ?? "0") > MAX_HEADER_CHARS)
+    return null;
   const reader = response.clone().body?.getReader();
   if (reader === undefined) return null;
   const chunks: Uint8Array[] = [];
@@ -125,7 +162,10 @@ interface Terms {
  * JSON (spec-notes #1). Before anything is paid, an unreadable header is a
  * seller bug worth surfacing; after a payment it must not hide the response.
  */
-const readTerms = async (response: Response, surfaceHeaderErrors: boolean): Promise<Terms | null> => {
+const readTerms = async (
+  response: Response,
+  surfaceHeaderErrors: boolean
+): Promise<Terms | null> => {
   const header = response.headers.get(HEADER_PAYMENT_REQUIRED);
   if (header !== null) {
     try {
@@ -144,7 +184,13 @@ const readTerms = async (response: Response, surfaceHeaderErrors: boolean): Prom
 /** The chosen offer as the seller wrote it, keys this schema does not know included. */
 const rawOffer = (terms: Terms, index: number): unknown => {
   const { raw } = terms;
-  if (typeof raw !== "object" || raw === null || !("accepts" in raw) || !Array.isArray(raw.accepts)) return undefined;
+  if (
+    typeof raw !== "object" ||
+    raw === null ||
+    !("accepts" in raw) ||
+    !Array.isArray(raw.accepts)
+  )
+    return undefined;
   return raw.accepts[index];
 };
 
@@ -152,13 +198,20 @@ const rawOffer = (terms: Terms, index: number): unknown => {
 const retryAfterMs = (response: Response, resend: number): number => {
   const header = response.headers.get("retry-after");
   const seconds = header === null ? Number.NaN : Number(header);
-  if (Number.isInteger(seconds) && seconds >= 0) return Math.min(seconds * 1000, MAX_RETRY_AFTER_MS);
-  return DEFAULT_BACKOFF_MS[Math.min(resend, DEFAULT_BACKOFF_MS.length - 1)] ?? MAX_RETRY_AFTER_MS;
+  if (Number.isInteger(seconds) && seconds >= 0)
+    return Math.min(seconds * 1000, MAX_RETRY_AFTER_MS);
+  return (
+    DEFAULT_BACKOFF_MS[Math.min(resend, DEFAULT_BACKOFF_MS.length - 1)] ??
+    MAX_RETRY_AFTER_MS
+  );
 };
 
 /** The seller could not reach or could not trust its facilitator; the payload itself was not judged. */
 const facilitatorUnavailable = (response: Response, hint: RetryHint): boolean =>
-  response.status === 502 || response.status === 503 || response.status === 504 || hint === "facilitator";
+  response.status === 502 ||
+  response.status === 503 ||
+  response.status === 504 ||
+  hint === "facilitator";
 
 interface Attempt {
   response: Response;
@@ -187,18 +240,33 @@ export class SuiX402Payer {
   readonly #gasHeadroomPercent: number | undefined;
   readonly #maxGasBudget: bigint | undefined;
   readonly #chainIdentifiers: Readonly<Record<string, string>> | undefined;
+  readonly #gasless: "never" | "auto" | "always";
+  readonly #gasStation: GasStationClient | undefined;
 
   constructor(options: SuiX402PayerOptions) {
     this.#client = options.client;
     this.#signer = options.signer;
     this.#select = options.select;
     // Wrapped rather than stored bare: a detached `fetch` throws in browsers.
-    this.#fetch = options.fetch ?? ((input, init) => globalThis.fetch(input, init));
+    this.#fetch =
+      options.fetch ?? ((input, init) => globalThis.fetch(input, init));
     this.#now = options.now ?? Date.now;
-    this.#sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+    this.#sleep =
+      options.sleep ??
+      ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
     this.#gasHeadroomPercent = options.gasHeadroomPercent;
     this.#maxGasBudget = options.maxGasBudget;
     this.#chainIdentifiers = options.chainIdentifiers;
+    this.#gasless = options.gasless ?? "never";
+    this.#gasStation =
+      typeof options.gasStation === "string"
+        ? httpGasStation(options.gasStation)
+        : options.gasStation;
+    if (this.#gasless !== "never" && this.#gasStation === undefined) {
+      throw new PayerConfigError(
+        `gasless is "${this.#gasless}" but no gasStation is configured`
+      );
+    }
   }
 
   /** Pays a 402 and returns the seller's final response. */
@@ -214,11 +282,16 @@ export class SuiX402Payer {
    */
   async fetchWithReceipt(
     input: string | URL,
-    init?: RequestInit,
-  ): Promise<{ response: Response; receipt: PaymentReceipt | null; sent: SentPayment | null }> {
+    init?: RequestInit
+  ): Promise<{
+    response: Response;
+    receipt: PaymentReceipt | null;
+    sent: SentPayment | null;
+  }> {
     const { response, sent } = await this.#pay(input, init);
     const header = response.headers.get(HEADER_PAYMENT_RESPONSE);
-    if (sent === null || header === null) return { response, receipt: null, sent };
+    if (sent === null || header === null)
+      return { response, receipt: null, sent };
     let settle: SettleResponse;
     try {
       settle = decodeHeader(header, SettleResponse);
@@ -226,7 +299,8 @@ export class SuiX402Payer {
       if (e instanceof HeaderError) return { response, receipt: null, sent };
       throw e;
     }
-    if (settle.success && settle.transaction !== sent.digest) return { response, receipt: null, sent };
+    if (settle.success && settle.transaction !== sent.digest)
+      return { response, receipt: null, sent };
     return {
       response,
       sent,
@@ -241,7 +315,10 @@ export class SuiX402Payer {
     };
   }
 
-  async #pay(input: string | URL, init: RequestInit | undefined): Promise<{ response: Response; sent: SentPayment | null }> {
+  async #pay(
+    input: string | URL,
+    init: RequestInit | undefined
+  ): Promise<{ response: Response; sent: SentPayment | null }> {
     const first = await this.#fetch(input, init);
     if (first.status !== 402) return { response: first, sent: null };
     let terms = await readTerms(first, true);
@@ -250,17 +327,38 @@ export class SuiX402Payer {
     let requirement = selectRequirement(terms.document.accepts, this.#select);
     let rebuilds = 0;
     for (;;) {
-      const offer = rawOffer(terms, terms.document.accepts.indexOf(requirement)) ?? requirement;
-      const { built, header } = await this.#sign(requirement, offer, terms.document.resource);
+      const offer =
+        rawOffer(terms, terms.document.accepts.indexOf(requirement)) ??
+        requirement;
+      const { built, header } = await this.#sign(
+        requirement,
+        offer,
+        terms.document.resource
+      );
       const sent = { digest: built.digest, accepted: requirement };
-      const { response, terms: next } = await this.#sendWithBackoff(input, init, header);
+      const { response, terms: next } = await this.#sendWithBackoff(
+        input,
+        init,
+        header
+      );
       if (response.status !== 402) return { response, sent };
 
       const reason = next?.document.error ?? "";
       const hint = retryHint(reason);
-      const retryable = (hint === "refetch_terms" && next !== null) || hint === "rebuild_tx";
-      if (rebuilds === MAX_REBUILDS || !retryable) throw new PaymentRejectedError(reason, hint, response);
-      await this.#assertNotExecuted(built, reason, hint, response);
+      const retryable =
+        (hint === "refetch_terms" && next !== null) || hint === "rebuild_tx";
+      if (rebuilds === MAX_REBUILDS || !retryable)
+        throw new PaymentRejectedError(reason, hint, response);
+      // The proof target is per path: any execution moves a gas coin, but the
+      // sponsor's gas coin proves nothing about the payer — there the
+      // payer-owned payment coin is the only usable target (§6.4).
+      const proofCoin = isSelfFunded(built) ? built.gasCoin : built.paymentCoin;
+      await this.#assertNotExecuted(
+        { digest: built.digest, coin: proofCoin },
+        reason,
+        hint,
+        response
+      );
       if (hint === "refetch_terms" && next !== null) {
         terms = next;
         requirement = selectRequirement(terms.document.accepts, this.#select);
@@ -273,22 +371,89 @@ export class SuiX402Payer {
   async #sign(
     requirement: PaymentRequirements,
     offer: unknown,
-    resource: Resource,
-  ): Promise<{ built: BuiltPayment; header: string }> {
+    resource: Resource
+  ): Promise<{ built: BuiltPayment | BuiltSponsoredPayment; header: string }> {
     const windowMs = requirement.maxTimeoutSeconds * 1000;
     const startedAt = this.#now();
-    let built = await this.#build(requirement);
-    if (windowMs > 0 && this.#now() >= startedAt + windowMs) built = await this.#build(requirement);
+    let built = await this.#buildForMode(requirement);
+    if (windowMs > 0 && this.#now() >= startedAt + windowMs)
+      built = await this.#buildForMode(requirement);
     const signature = await this.#signer.signTransaction(built.bytes);
+    const sponsored = !isSelfFunded(built);
     const payload = {
       x402Version: 2,
       resource,
       accepted: offer,
       payload: { transaction: toBase64(built.bytes), signature },
+      // The Enoki digest rides in the already-optional extensions field; the
+      // payload shape itself is unchanged.
+      ...(sponsored
+        ? { extensions: { [SUI_SPONSOR_EXTENSION]: { digest: built.digest } } }
+        : {}),
     };
     // Validated, not rewritten: the header carries the seller's own `accepted` object.
     PaymentPayload.parse(payload);
     return { built, header: encodeHeader(payload) };
+  }
+
+  /**
+   * Mode dispatch. `"auto"` falls back to sponsored only when the SUI *gas*
+   * floor is what failed: a payment-asset shortfall would fail identically in
+   * the kind builder, so falling back on it only duplicates the failure.
+   */
+  async #buildForMode(
+    requirement: PaymentRequirements
+  ): Promise<BuiltPayment | BuiltSponsoredPayment> {
+    if (this.#gasless === "always") return this.#buildSponsored(requirement);
+    if (this.#gasless === "never") return this.#build(requirement);
+    try {
+      return await this.#build(requirement);
+    } catch (e) {
+      const isGasShortfall =
+        e instanceof InsufficientBalanceError &&
+        normalizeStructTag(e.asset) === SUI_TYPE_ARG;
+      if (!isGasShortfall) throw e;
+      return this.#buildSponsored(requirement);
+    }
+  }
+
+  async #buildSponsored(
+    requirement: PaymentRequirements
+  ): Promise<BuiltSponsoredPayment> {
+    const gasStation = this.#gasStation;
+    if (gasStation === undefined)
+      throw new PayerConfigError("gasless requires a configured gasStation");
+    // §6.5: a seller-advertised gas station is only ever used to detect
+    // disagreement with the configured one — never adopted.
+    const advertised = requirement.extra?.[SUI_GAS_STATION_EXTRA];
+    if (
+      typeof advertised === "object" &&
+      advertised !== null &&
+      "url" in advertised &&
+      typeof advertised.url === "string"
+    ) {
+      if (
+        normalizeBaseUrl(advertised.url) !==
+        normalizeBaseUrl(gasStation.baseUrl)
+      ) {
+        throw new GasStationError(
+          "deployment_mismatch",
+          `the seller advertises gas station ${advertised.url}, but this payer is configured for ${gasStation.baseUrl}; sponsorship and settlement must run through one deployment`
+        );
+      }
+    }
+    const kind = await buildSponsoredPaymentKind({
+      client: this.#client,
+      sender: this.#signer.address(),
+      requirements: requirement,
+      chainIdentifiers: this.#chainIdentifiers,
+    });
+    return sponsorPayment({
+      client: this.#client,
+      gasStation,
+      kind,
+      network: requirement.network,
+    });
   }
 
   #build(requirement: PaymentRequirements): Promise<BuiltPayment> {
@@ -303,7 +468,11 @@ export class SuiX402Payer {
   }
 
   /** Sends the signed payload, resending the identical bytes while the facilitator is unavailable. */
-  async #sendWithBackoff(input: string | URL, init: RequestInit | undefined, header: string): Promise<Attempt> {
+  async #sendWithBackoff(
+    input: string | URL,
+    init: RequestInit | undefined,
+    header: string
+  ): Promise<Attempt> {
     let attempt = await this.#send(input, init, header);
     for (let resend = 0; resend < MAX_RESENDS; resend++) {
       const hint = retryHint(attempt.terms?.document.error ?? "");
@@ -314,22 +483,36 @@ export class SuiX402Payer {
     return attempt;
   }
 
-  async #send(input: string | URL, init: RequestInit | undefined, header: string): Promise<Attempt> {
+  async #send(
+    input: string | URL,
+    init: RequestInit | undefined,
+    header: string
+  ): Promise<Attempt> {
     const headers = new Headers(init?.headers);
     headers.set(HEADER_PAYMENT_SIGNATURE, header);
     const response = await this.#fetch(input, { ...init, headers });
-    return { response, terms: response.status === 402 ? await readTerms(response, false) : null };
+    return {
+      response,
+      terms: response.status === 402 ? await readTerms(response, false) : null,
+    };
   }
 
   /**
    * A second payment is signed only once the first one provably never
-   * executed: its gas coin still sits at the signed version, on two reads
-   * spaced apart. Transaction lookups cannot give that proof — a full node
-   * answers "not found" for pruned history too — and a moved coin, whatever
-   * moved it, ends the call.
+   * executed: the proof coin still sits at the signed version, on two reads
+   * spaced apart. Self-funded payments prove it with the gas coin (any
+   * execution moves it, even an abort); sponsored payments with the payment
+   * coin, which a successful execution always moves.
+   * NOT-HANDLED(an aborted sponsored execution reads as never-executed; the
+   * payer bears no gas cost and the retry carries a fresh digest)
    */
-  async #assertNotExecuted(built: BuiltPayment, reason: string, hint: RetryHint, response: Response): Promise<void> {
-    const { objectId, version } = built.gasCoin;
+  async #assertNotExecuted(
+    proof: { digest: string; coin: CoinRef },
+    reason: string,
+    hint: RetryHint,
+    response: Response
+  ): Promise<void> {
+    const { objectId, version } = proof.coin;
     for (let pass = 0; pass < 2; pass++) {
       if (pass > 0) await this.#sleep(RECHECK_MS);
       let current: string;
@@ -341,7 +524,7 @@ export class SuiX402Payer {
           reason,
           hint,
           response,
-          `could not confirm payment ${built.digest} never executed (gas coin ${objectId}): ${detail}`,
+          `could not confirm payment ${proof.digest} never executed (proof coin ${objectId}): ${detail}`
         );
       }
       if (current !== version) {
@@ -349,9 +532,22 @@ export class SuiX402Payer {
           reason,
           "none",
           response,
-          `payment ${built.digest} may have executed: gas coin ${objectId} moved from version ${version} to ${current}`,
+          `payment ${proof.digest} may have executed: proof coin ${objectId} moved from version ${version} to ${current}`
         );
       }
     }
   }
 }
+
+/** The two built-payment shapes are told apart by their proof coin. */
+const isSelfFunded = (built: BuiltPayment | BuiltSponsoredPayment): built is BuiltPayment => "gasCoin" in built;
+
+/** Lowercased origin plus path with trailing slashes trimmed — the §6.5 comparison key. */
+const normalizeBaseUrl = (url: string): string => {
+  try {
+    const parsed = new URL(url);
+    return parsed.origin + parsed.pathname.replace(/\/+$/, "");
+  } catch {
+    return url;
+  }
+};

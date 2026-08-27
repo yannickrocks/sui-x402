@@ -73,6 +73,8 @@ export interface SellerOptions {
   onSettleFailure?: (failure: SettleFailure) => void;
   /** A successful settlement; in fast mode this is the seller's only record of it. */
   onSettled?: (settle: SettleResponse) => void;
+  /** Merged into `PaymentRequirements.extra`. Opt-in; sellers that omit it are unchanged. */
+  extra?: Record<string, unknown>;
 }
 
 export interface SellerRequest {
@@ -82,7 +84,12 @@ export interface SellerRequest {
 }
 
 export type SellerDecision =
-  | { kind: "respond"; status: 400 | 402 | 503; headers: Record<string, string>; body: Record<string, unknown> }
+  | {
+      kind: "respond";
+      status: 400 | 402 | 503;
+      headers: Record<string, string>;
+      body: Record<string, unknown>;
+    }
   | {
       kind: "fulfill";
       headers: Record<string, string>;
@@ -94,7 +101,10 @@ export interface Seller {
   readonly requirements: PaymentRequirements;
   readonly mode: "strict" | "fast";
   /** The 402 document, in the header and the body alike (spec-notes #1). */
-  paymentRequired(url: string, error: string): { header: string; body: PaymentRequired };
+  paymentRequired(
+    url: string,
+    error: string
+  ): { header: string; body: PaymentRequired };
   handle(request: SellerRequest): Promise<SellerDecision>;
   /** Startup check against `GET /supported`. */
   assertFacilitatorSupports(): Promise<void>;
@@ -108,26 +118,33 @@ export class SellerConfigError extends Error {
   }
 }
 
-export type FacilitatorErrorKind = "unreachable" | "timeout" | "http" | "unparseable";
+export type FacilitatorErrorKind =
+  | "unreachable"
+  | "timeout"
+  | "http"
+  | "unparseable";
 
 /** The facilitator could not be reached or could not be understood; no verdict was reached. */
 export class FacilitatorError extends Error {
   constructor(
     readonly kind: FacilitatorErrorKind,
     message: string,
-    readonly status: number | null = null,
+    readonly status: number | null = null
   ) {
     super(message);
     this.name = "FacilitatorError";
   }
 }
 
-const aborted = (e: unknown): boolean => e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError");
+const aborted = (e: unknown): boolean =>
+  e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError");
 
-const detail = (e: unknown): string => (e instanceof Error ? e.message : String(e));
+const detail = (e: unknown): string =>
+  e instanceof Error ? e.message : String(e);
 
 const positiveInteger = (field: string, value: number): number => {
-  if (!Number.isInteger(value) || value <= 0) throw new SellerConfigError(`${field} must be a positive integer`);
+  if (!Number.isInteger(value) || value <= 0)
+    throw new SellerConfigError(`${field} must be a positive integer`);
   return value;
 };
 
@@ -152,58 +169,101 @@ const buildRequirements = (options: SellerOptions): PaymentRequirements => {
     asset: options.asset,
     payTo: options.payTo,
     maxTimeoutSeconds: options.maxTimeoutSeconds ?? DEFAULT_MAX_TIMEOUT_SECONDS,
-    extra: {},
+    extra: { ...options.extra },
   });
   if (parsed.success) return parsed.data;
   const issue = parsed.error.issues[0];
-  if (issue === undefined) throw new SellerConfigError("payment requirements are invalid");
+  if (issue === undefined)
+    throw new SellerConfigError("payment requirements are invalid");
   throw new SellerConfigError(
-    `${issue.path.length === 0 ? "requirements" : issue.path.join(".")}: ${issue.message}`,
+    `${issue.path.length === 0 ? "requirements" : issue.path.join(".")}: ${
+      issue.message
+    }`
   );
 };
 
 /** Adapters accept either; a `Seller` is shared across mounts, options build one. */
-export const isSeller = (value: SellerOptions | Seller): value is Seller => "handle" in value;
+export const isSeller = (value: SellerOptions | Seller): value is Seller =>
+  "handle" in value;
 
 export function createSeller(options: SellerOptions): Seller {
   const requirements = buildRequirements(options);
   if (requirements.network === "sui:mainnet" && options.allowMainnet !== true) {
-    throw new SellerConfigError("network is sui:mainnet: set allowMainnet to take real funds");
+    throw new SellerConfigError(
+      "network is sui:mainnet: set allowMainnet to take real funds"
+    );
   }
   const base = facilitatorBase(options.facilitator);
   const mode = options.mode ?? "strict";
   const retryAfter = String(
-    positiveInteger("retryAfterSeconds", options.retryAfterSeconds ?? DEFAULT_RETRY_AFTER_SECONDS),
+    positiveInteger(
+      "retryAfterSeconds",
+      options.retryAfterSeconds ?? DEFAULT_RETRY_AFTER_SECONDS
+    )
   );
-  const verifyTimeoutMs = positiveInteger("verifyTimeoutMs", options.verifyTimeoutMs ?? DEFAULT_VERIFY_TIMEOUT_MS);
+  const verifyTimeoutMs = positiveInteger(
+    "verifyTimeoutMs",
+    options.verifyTimeoutMs ?? DEFAULT_VERIFY_TIMEOUT_MS
+  );
   const settleTimeoutMs = positiveInteger(
     "settleTimeoutMs",
-    options.settleTimeoutMs ?? requirements.maxTimeoutSeconds * 1_000 + SETTLE_TIMEOUT_HEADROOM_MS,
+    options.settleTimeoutMs ??
+      requirements.maxTimeoutSeconds * 1_000 + SETTLE_TIMEOUT_HEADROOM_MS
   );
   // Wrapped rather than stored bare: a detached `fetch` throws in browsers.
-  const fetchImpl = options.fetch ?? ((input, init) => globalThis.fetch(input, init));
+  const fetchImpl =
+    options.fetch ?? ((input, init) => globalThis.fetch(input, init));
   const onSettleFailure = options.onSettleFailure;
   const onSettled = options.onSettled;
 
-  const send = async (path: string, init: RequestInit, timeoutMs: number): Promise<Response> => {
+  const send = async (
+    path: string,
+    init: RequestInit,
+    timeoutMs: number
+  ): Promise<Response> => {
     try {
-      return await fetchImpl(`${base}${path}`, { ...init, signal: AbortSignal.timeout(timeoutMs) });
+      return await fetchImpl(`${base}${path}`, {
+        ...init,
+        signal: AbortSignal.timeout(timeoutMs),
+      });
     } catch (e) {
-      if (aborted(e)) throw new FacilitatorError("timeout", `facilitator ${path}: no answer within ${timeoutMs}ms`);
-      throw new FacilitatorError("unreachable", `facilitator ${path}: ${detail(e)}`);
+      if (aborted(e))
+        throw new FacilitatorError(
+          "timeout",
+          `facilitator ${path}: no answer within ${timeoutMs}ms`
+        );
+      throw new FacilitatorError(
+        "unreachable",
+        `facilitator ${path}: ${detail(e)}`
+      );
     }
   };
 
-  const read = async <T>(response: Response, schema: z.ZodType<T>, path: string): Promise<T> => {
+  const read = async <T>(
+    response: Response,
+    schema: z.ZodType<T>,
+    path: string
+  ): Promise<T> => {
     let json: unknown;
     try {
       json = await response.json();
     } catch (e) {
-      if (aborted(e)) throw new FacilitatorError("timeout", `facilitator ${path}: body never arrived`);
-      throw new FacilitatorError("unparseable", `facilitator ${path}: body is not JSON`);
+      if (aborted(e))
+        throw new FacilitatorError(
+          "timeout",
+          `facilitator ${path}: body never arrived`
+        );
+      throw new FacilitatorError(
+        "unparseable",
+        `facilitator ${path}: body is not JSON`
+      );
     }
     const parsed = schema.safeParse(json);
-    if (!parsed.success) throw new FacilitatorError("unparseable", `facilitator ${path}: unexpected response shape`);
+    if (!parsed.success)
+      throw new FacilitatorError(
+        "unparseable",
+        `facilitator ${path}: unexpected response shape`
+      );
     return parsed.data;
   };
 
@@ -212,25 +272,48 @@ export function createSeller(options: SellerOptions): Seller {
    * parse — both carry a reason code (spec-notes #5). Any other status is an
    * outage, not a verdict.
    */
-  const post = async <T>(path: string, body: unknown, schema: z.ZodType<T>, timeoutMs: number): Promise<T> => {
+  const post = async <T>(
+    path: string,
+    body: unknown,
+    schema: z.ZodType<T>,
+    timeoutMs: number
+  ): Promise<T> => {
     const response = await send(
       path,
-      { method: "POST", headers: { "content-type": JSON_CONTENT_TYPE }, body: JSON.stringify(body) },
-      timeoutMs,
+      {
+        method: "POST",
+        headers: { "content-type": JSON_CONTENT_TYPE },
+        body: JSON.stringify(body),
+      },
+      timeoutMs
     );
     if (response.status !== 200 && response.status !== 400) {
-      throw new FacilitatorError("http", `facilitator ${path}: HTTP ${response.status}`, response.status);
+      throw new FacilitatorError(
+        "http",
+        `facilitator ${path}: HTTP ${response.status}`,
+        response.status
+      );
     }
     return read(response, schema, path);
   };
 
-  const paymentRequired = (url: string, error: string): { header: string; body: PaymentRequired } => {
+  const paymentRequired = (
+    url: string,
+    error: string
+  ): { header: string; body: PaymentRequired } => {
     const resource: Resource = {
       url,
-      ...(options.description === undefined ? {} : { description: options.description }),
+      ...(options.description === undefined
+        ? {}
+        : { description: options.description }),
       ...(options.mimeType === undefined ? {} : { mimeType: options.mimeType }),
     };
-    const body: PaymentRequired = { x402Version: 2, error, resource, accepts: [requirements] };
+    const body: PaymentRequired = {
+      x402Version: 2,
+      error,
+      resource,
+      accepts: [requirements],
+    };
     return { header: encodeHeader(body), body };
   };
 
@@ -239,7 +322,10 @@ export function createSeller(options: SellerOptions): Seller {
     return {
       kind: "respond",
       status: 402,
-      headers: { [HEADER_PAYMENT_REQUIRED]: header, "content-type": JSON_CONTENT_TYPE },
+      headers: {
+        [HEADER_PAYMENT_REQUIRED]: header,
+        "content-type": JSON_CONTENT_TYPE,
+      },
       body,
     };
   };
@@ -270,27 +356,36 @@ export function createSeller(options: SellerOptions): Seller {
           reason: settle.errorReason ?? "unexpected_settle_error",
           payer: settle.payer ?? null,
           digest: settle.transaction === "" ? null : settle.transaction,
-        }),
+        })
       );
     }
     return settle;
   };
 
   /** A fire-and-forget settle must not take the process down, whatever fails inside it. */
-  const settleInBackground = async (body: unknown): Promise<SettleResponse | null> => {
+  const settleInBackground = async (
+    body: unknown
+  ): Promise<SettleResponse | null> => {
     try {
       const settle = await settleAndReport(body);
       return settle.success ? settle : null;
     } catch (e) {
       report(() =>
-        onSettleFailure?.({ reason: e instanceof FacilitatorError ? e.kind : detail(e), payer: null, digest: null }),
+        onSettleFailure?.({
+          reason: e instanceof FacilitatorError ? e.kind : detail(e),
+          payer: null,
+          digest: null,
+        })
       );
       return null;
     }
   };
 
   /** Strict path: settled before anything is served. */
-  const settleNow = async (url: string, body: unknown): Promise<SellerDecision> => {
+  const settleNow = async (
+    url: string,
+    body: unknown
+  ): Promise<SellerDecision> => {
     let settle: SettleResponse;
     try {
       settle = await settleAndReport(body);
@@ -300,8 +395,16 @@ export function createSeller(options: SellerOptions): Seller {
       // digest, so a retry cannot pay twice.
       return unavailable(e);
     }
-    if (!settle.success) return askForPayment(url, settle.errorReason ?? "unexpected_settle_error");
-    return { kind: "fulfill", headers: { [HEADER_PAYMENT_RESPONSE]: encodeHeader(settle) }, settleAfter: null };
+    if (!settle.success)
+      return askForPayment(
+        url,
+        settle.errorReason ?? "unexpected_settle_error"
+      );
+    return {
+      kind: "fulfill",
+      headers: { [HEADER_PAYMENT_RESPONSE]: encodeHeader(settle) },
+      settleAfter: null,
+    };
   };
 
   const handle = async (request: SellerRequest): Promise<SellerDecision> => {
@@ -324,7 +427,11 @@ export function createSeller(options: SellerOptions): Seller {
       };
     }
 
-    const body = { x402Version: 2, paymentPayload: raw, paymentRequirements: requirements };
+    const body = {
+      x402Version: 2,
+      paymentPayload: raw,
+      paymentRequirements: requirements,
+    };
 
     let verify: VerifyResponse;
     try {
@@ -339,29 +446,55 @@ export function createSeller(options: SellerOptions): Seller {
       // Only /settle can tell, because it reconstructs a prior settlement
       // from chain; a genuinely stale transaction fails there too.
       if (verify.invalidReason !== "invalid_transaction_state") {
-        return askForPayment(request.url, verify.invalidReason ?? "invalid_payload");
+        return askForPayment(
+          request.url,
+          verify.invalidReason ?? "invalid_payload"
+        );
       }
       return settleNow(request.url, body);
     }
 
     if (mode === "fast") {
-      return { kind: "fulfill", headers: {}, settleAfter: () => settleInBackground(body) };
+      return {
+        kind: "fulfill",
+        headers: {},
+        settleAfter: () => settleInBackground(body),
+      };
     }
     return settleNow(request.url, body);
   };
 
   const assertFacilitatorSupports = async (): Promise<void> => {
-    const response = await send("/supported", { method: "GET" }, verifyTimeoutMs);
+    const response = await send(
+      "/supported",
+      { method: "GET" },
+      verifyTimeoutMs
+    );
     if (response.status !== 200) {
-      throw new FacilitatorError("http", `facilitator /supported: HTTP ${response.status}`, response.status);
+      throw new FacilitatorError(
+        "http",
+        `facilitator /supported: HTTP ${response.status}`,
+        response.status
+      );
     }
     const kinds = (await read(response, Supported, "/supported")).kinds;
-    if (!kinds.some((kind) => kind.scheme === "exact" && kind.network === requirements.network)) {
+    if (
+      !kinds.some(
+        (kind) =>
+          kind.scheme === "exact" && kind.network === requirements.network
+      )
+    ) {
       throw new SellerConfigError(
-        `network: ${base} does not settle exact payments on ${requirements.network}`,
+        `network: ${base} does not settle exact payments on ${requirements.network}`
       );
     }
   };
 
-  return { requirements, mode, paymentRequired, handle, assertFacilitatorSupports };
+  return {
+    requirements,
+    mode,
+    paymentRequired,
+    handle,
+    assertFacilitatorSupports,
+  };
 }

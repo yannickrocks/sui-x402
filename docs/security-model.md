@@ -22,12 +22,12 @@ flowchart LR
   S -. "only then" .-> Hd
 ```
 
-| Party | Holds | Can do | Cannot do |
-|---|---|---|---|
-| Payer | its own key, its coins | choose which offers to pay, cap spend | be made to pay more than it signed |
-| Seller | nothing of the payer's | advertise terms, relay, withhold content | alter the payment, settle without the facilitator |
-| Facilitator | no keys, no funds | dry-run, broadcast, dedupe | redirect funds, change the amount |
-| Sui | the ledger | execute once | execute a transaction twice |
+| Party       | Holds                  | Can do                                   | Cannot do                                         |
+| ----------- | ---------------------- | ---------------------------------------- | ------------------------------------------------- |
+| Payer       | its own key, its coins | choose which offers to pay, cap spend    | be made to pay more than it signed                |
+| Seller      | nothing of the payer's | advertise terms, relay, withhold content | alter the payment, settle without the facilitator |
+| Facilitator | no keys, no funds      | dry-run, broadcast, dedupe               | redirect funds, change the amount                 |
+| Sui         | the ledger             | execute once                             | execute a transaction twice                       |
 
 The signed transaction is the security object. Its amount, recipient and asset
 are fixed by the signature; its chain and epoch are fixed by the expiration; its
@@ -41,7 +41,14 @@ rejected with a reason list. `sui:mainnet` is never implicit.
 
 **A client pointed at the wrong chain.** The node's genesis checkpoint digest
 must match the offer's network; otherwise `network_mismatch`, before any coin
-is read for spending.
+is read for spending. On mainnet this guard is only as good as the RPC it
+asks: a hostile or misconfigured endpoint can answer with any digest it
+likes, so the facilitator's `SUI_MAINNET_RPC` must list only endpoints the
+operator controls or independently trusts, mainnet must run as a separate
+facilitator deployment from testnet — its own URL, secrets and logs — and
+rollout is canary-first, from a wallet holding only the canary budget, so a
+wrong-chain failure costs that budget and nothing more. Checklist in the
+[facilitator runbook, "Mainnet"](facilitator-runbook.md#mainnet).
 
 **A mis-built transaction.** The payer simulates before signing and checks that
 the simulated balance change credits the payee with at least the amount —
@@ -64,6 +71,23 @@ and `sent`, and a `receipt` only when it is consistent.
 
 **Key leakage.** Keys are read from the environment; error messages never
 include the input; the signed payload is never logged by the SDK.
+
+**A hostile gas station (sponsored payments, opt-in).** The sponsor is
+untrusted and structurally constrained, not trusted: before signing, the payer
+asserts the returned bytes' transaction kind is byte-identical to what it
+submitted, the sender is still the payer, the gas owner is not the payer, the
+budget and price are sane, the digest matches the bytes, and a fresh
+simulation credits the seller with the full amount. A sponsor can therefore
+refuse to sponsor, but cannot alter, redirect, or inflate the payment. Two
+sponsored properties are weaker than the self-funded path and are stated
+rather than hidden: the non-execution proof reads the payer's _payment_ coin
+(a successful execution always moves it; an aborted one reads as
+never-executed — the payer bears no gas cost and any retry carries a fresh
+digest), and the transaction kind carries no epoch bound, so the sponsor's
+expiry policy applies; a sponsored payment's uniqueness comes from a random
+nonce input baked into the kind. Until settle-side support lands upstream,
+whether a given sponsored payment's expiration is bounded is verified live and
+recorded in the spec notes before the path is promoted.
 
 ## What the seller defends against
 

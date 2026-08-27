@@ -83,6 +83,16 @@ export const SuiExactPayload = z.object({
 });
 export type SuiExactPayload = z.infer<typeof SuiExactPayload>;
 
+/** `PaymentPayload.extensions` key carrying the sponsor's digest for a gas-station-sponsored payment. */
+export const SUI_SPONSOR_EXTENSION = "sui.sponsor";
+export const SuiSponsorExtension = z.object({ digest: z.string().min(1) });
+export type SuiSponsorExtension = z.infer<typeof SuiSponsorExtension>;
+
+/** `PaymentRequirements.extra` key a sponsoring seller uses to advertise its gas station. */
+export const SUI_GAS_STATION_EXTRA = "sui.gasStation";
+export const SuiGasStationHint = z.object({ url: z.string().url() });
+export type SuiGasStationHint = z.infer<typeof SuiGasStationHint>;
+
 /** Decoded `PAYMENT-SIGNATURE` header. */
 export const PaymentPayload = z.object({
   x402Version: z.literal(2),

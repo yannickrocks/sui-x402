@@ -46,22 +46,33 @@ export class InsufficientBalanceError extends Error {
   constructor(
     readonly asset: string,
     readonly required: bigint,
-    readonly available: bigint,
+    readonly available: bigint
   ) {
-    super(`insufficient balance of ${asset}: required ${required}, available ${available} (atomic units)`);
+    super(
+      `insufficient balance of ${asset}: required ${required}, available ${available} (atomic units)`
+    );
     this.name = "InsufficientBalanceError";
   }
 }
 
 /** All `Coin<asset>` objects owned by `owner`, up to `MAX_COIN_PAGES` pages. */
-export async function discoverCoins(client: CoinSource, owner: string, asset: string): Promise<OwnedCoin[]> {
+export async function discoverCoins(
+  client: CoinSource,
+  owner: string,
+  asset: string
+): Promise<OwnedCoin[]> {
   const coinType = normalizeStructTag(asset);
   const objectType = normalizeStructTag(`0x2::coin::Coin<${coinType}>`);
   const ownerAddress = normalizeSuiAddress(owner);
   const coins: OwnedCoin[] = [];
   let cursor: string | null = null;
   for (let page = 0; page < MAX_COIN_PAGES; page++) {
-    const result = await client.listCoins({ owner: ownerAddress, coinType, cursor, limit: COIN_PAGE_SIZE });
+    const result = await client.listCoins({
+      owner: ownerAddress,
+      coinType,
+      cursor,
+      limit: COIN_PAGE_SIZE,
+    });
     for (const c of result.objects) {
       if (normalizeStructTag(c.type) === objectType) coins.push(c);
     }
@@ -70,6 +81,13 @@ export async function discoverCoins(client: CoinSource, owner: string, asset: st
   }
   return coins;
 }
+
+/** The immutable ref of an owned coin, as transaction inputs want it. */
+export const coinRef = (c: OwnedCoin): CoinRef => ({
+  objectId: c.objectId,
+  version: c.version,
+  digest: c.digest,
+});
 
 export interface CoinSelection {
   /** Coin the payment is split from; `merge` is merged into it first. */
@@ -84,11 +102,17 @@ const byBalanceDesc = (a: OwnedCoin, b: OwnedCoin): number => {
 };
 
 /** A copy of `coins` sorted largest-first — the order every selection here walks. */
-export const sortLargestFirst = (coins: readonly OwnedCoin[]): OwnedCoin[] => [...coins].sort(byBalanceDesc);
+export const sortLargestFirst = (coins: readonly OwnedCoin[]): OwnedCoin[] =>
+  [...coins].sort(byBalanceDesc);
 
 /** Smallest largest-first set of coins covering `amount`; throws `InsufficientBalanceError` pre-sign. */
-export function selectCoins(coins: readonly OwnedCoin[], amount: bigint, asset: string): CoinSelection {
-  if (amount <= 0n) throw new RangeError(`payment amount must be positive, got ${amount}`);
+export function selectCoins(
+  coins: readonly OwnedCoin[],
+  amount: bigint,
+  asset: string
+): CoinSelection {
+  if (amount <= 0n)
+    throw new RangeError(`payment amount must be positive, got ${amount}`);
   const candidates = sortLargestFirst(coins).slice(0, MAX_INPUT_COINS);
   let primary: OwnedCoin | undefined;
   const merge: OwnedCoin[] = [];
@@ -100,7 +124,11 @@ export function selectCoins(coins: readonly OwnedCoin[], amount: bigint, asset: 
     if (total >= amount) break;
   }
   if (primary === undefined || total < amount) {
-    throw new InsufficientBalanceError(normalizeStructTag(asset), amount, total);
+    throw new InsufficientBalanceError(
+      normalizeStructTag(asset),
+      amount,
+      total
+    );
   }
   return { primary, merge, total };
 }

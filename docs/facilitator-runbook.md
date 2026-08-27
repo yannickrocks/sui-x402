@@ -14,7 +14,6 @@ instance, deployed from this config to Railway, runs at
 
 ## What you get
 
-
 ```mermaid
 flowchart LR
   Sellers["your sellers<br/>(hono · express · next)"] -- "/verify · /settle" --> F["facilitator<br/>Fly / Railway / Docker<br/>one always-on instance"]
@@ -37,14 +36,14 @@ station. Semantic failures are HTTP 200 with `isValid:false` /
 
 ## Files
 
-| path | purpose |
-|---|---|
-| `deploy/facilitator/upstream/` | submodule, read-only for us |
-| `deploy/facilitator/Dockerfile` | `node:22-alpine`, `npm ci --omit=dev`, runs `tsx src/index.ts` as upstream does |
-| `deploy/facilitator/.env.example` | every env var upstream reads |
-| `deploy/facilitator/fly.toml` | Fly.io app manifest |
-| `deploy/facilitator/railway.json` | Railway service config |
-| `deploy/facilitator/smoke.mjs` | local smoke test (starts server, checks `/health` + `/supported`) |
+| path                              | purpose                                                                         |
+| --------------------------------- | ------------------------------------------------------------------------------- |
+| `deploy/facilitator/upstream/`    | submodule, read-only for us                                                     |
+| `deploy/facilitator/Dockerfile`   | `node:22-alpine`, `npm ci --omit=dev`, runs `tsx src/index.ts` as upstream does |
+| `deploy/facilitator/.env.example` | every env var upstream reads                                                    |
+| `deploy/facilitator/fly.toml`     | Fly.io app manifest                                                             |
+| `deploy/facilitator/railway.json` | Railway service config                                                          |
+| `deploy/facilitator/smoke.mjs`    | local smoke test (starts server, checks `/health` + `/supported`)               |
 
 ## Prerequisites
 
@@ -91,6 +90,12 @@ node deploy/facilitator/smoke.mjs            # starts upstream on a free port, c
 node deploy/facilitator/smoke.mjs --save     # also writes packages/core/fixtures/facilitator-supported.local.json
 ```
 
+`--save` always writes that testnet-pinned fixture and refuses to run against
+a mainnet-enabled facilitator. Never use it to capture a mainnet `/supported`
+— if a mainnet-enabled local capture is ever genuinely wanted, it goes to a
+**new** fixture file, `packages/core/fixtures/facilitator-supported.local-mainnet.json`,
+with its own test assertion, never by overwriting `.local.json`.
+
 ### Docker
 
 ```sh
@@ -130,17 +135,17 @@ fly status && curl -s https://<your-app-name>.fly.dev/supported | jq
 
 ## Configuration
 
-| env | default | notes |
-|---|---|---|
-| `PORT` | `4402` | Fly/Railway inject their own; upstream reads it |
-| `SUI_TESTNET_RPC` | official fullnode | comma-separated gRPC failover list |
-| `SUI_MAINNET_RPC` | official fullnode | only read when `ENABLE_MAINNET=1` |
-| `ENABLE_MAINNET` | unset | off by default, see "Mainnet" |
-| `RPC_TIMEOUT_MS` | `20000` | per-call timeout before failover |
-| `RATE_LIMIT` | `120` | requests per IP per minute (keyed on the last `x-forwarded-for` hop) |
-| `ENOKI_KEY` | unset | enables `/gas-station` routes; sponsor key pays gas only |
-| `SPONSOR_DAILY_CAP` | `60` | sponsored txs per sender per day |
-| `SPONSOR_GLOBAL_DAILY_CAP` | `1000` | sponsored txs per day, all senders |
+| env                        | default           | notes                                                                |
+| -------------------------- | ----------------- | -------------------------------------------------------------------- |
+| `PORT`                     | `4402`            | Fly/Railway inject their own; upstream reads it                      |
+| `SUI_TESTNET_RPC`          | official fullnode | comma-separated gRPC failover list                                   |
+| `SUI_MAINNET_RPC`          | official fullnode | only read when `ENABLE_MAINNET=1`                                    |
+| `ENABLE_MAINNET`           | unset             | off by default, see "Mainnet"                                        |
+| `RPC_TIMEOUT_MS`           | `20000`           | per-call timeout before failover                                     |
+| `RATE_LIMIT`               | `120`             | requests per IP per minute (keyed on the last `x-forwarded-for` hop) |
+| `ENOKI_KEY`                | unset             | enables `/gas-station` routes; sponsor key pays gas only             |
+| `SPONSOR_DAILY_CAP`        | `60`              | sponsored txs per sender per day                                     |
+| `SPONSOR_GLOBAL_DAILY_CAP` | `1000`            | sponsored txs per day, all senders                                   |
 
 ## Operating notes
 
@@ -173,22 +178,124 @@ from those fixtures.
 
 ## Mainnet
 
-Off by default and never enabled by tooling. To enable it deliberately:
+Off by default and never enabled by tooling. This section is the hardening
+review that `deploy/facilitator/.env.example` points at — every box below is
+required before `ENABLE_MAINNET=1` is set on any deployment.
 
-1. Read upstream's README "Networks & assets" and `PROOF.md`; confirm the
-   pinned commit is the one you reviewed.
-2. Provide two trusted mainnet gRPC endpoints in `SUI_MAINNET_RPC`.
-3. Set `ENABLE_MAINNET=1` as a platform secret; redeploy.
-4. `curl /supported` must now list `sui:mainnet` with Circle's USDC
-   `0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC`.
-5. Update `packages/core/fixtures/` from the mainnet-enabled `/supported`.
+### Config surface
+
+| env                | effect                                                                                      | where it may live    |
+| ------------------ | ------------------------------------------------------------------------------------------- | -------------------- |
+| `ENABLE_MAINNET=1` | flips the facilitator's network registry to advertise `sui:mainnet` alongside `sui:testnet` | platform secret only |
+| `SUI_MAINNET_RPC`  | comma-separated gRPC failover list, first entry primary                                     | platform secret only |
+
+Neither var may be committed to `.env.example`, `fly.toml`, or `railway.json`.
+
+`SUI_MAINNET_RPC` has two silent-failure modes — get either wrong and the
+service still starts and still passes a casual smoke test:
+
+- **Unset** is not "no mainnet RPC": it falls back to a single public
+  default endpoint — a no-failover mainnet service that passes every other
+  check below.
+- **Empty string** is not the same as unset: it yields zero endpoints.
+
+### Hardening checklist
+
+Check every box before setting `ENABLE_MAINNET=1`.
+
+1. **Pinned commit reviewed, and the pin is in lockstep.** Read the exact
+   submodule commit at `deploy/facilitator/upstream/` — verify, settle,
+   replay/idempotency, and broadcast paths, not the upstream default
+   branch. Record the reviewed SHA, then confirm the three places this
+   repo records it agree: `git submodule status deploy/facilitator/upstream`,
+   the `ARG UPSTREAM_COMMIT` literal in `deploy/facilitator/Dockerfile`, and
+   the "Pinned commit" row in `deploy/facilitator/UPSTREAM.md`. The
+   Dockerfile literal is hand-maintained and is what the deployed image
+   actually runs — a drift here means you reviewed one commit and shipped
+   another.
+2. **Upstream claims checked.** Read upstream's README "Networks & assets"
+   and `PROOF.md`; confirm the pinned commit is the one those documents
+   describe.
+3. **Mainnet asset confirmed** against two independent sources, including
+   on-chain coin metadata showing `decimals` 6.
+
+   > **Confirmation record** (fill in when this step runs):
+   >
+   > - Date: _TBD_
+   > - Source A: _TBD_
+   > - Source B: _TBD_
+
+4. **RPC endpoints trusted — and actually configured.** `SUI_MAINNET_RPC`
+   holds two endpoints you control or independently trust — never a
+   community aggregator or an unauthenticated public proxy chosen for
+   convenience. Verification trusts whatever the node answers (dry-run
+   result, balance changes, digest lookup), so a hostile endpoint can
+   falsely validate a payment. Confirm in the deployment platform's own
+   secret list — not just a local `.env` — that the var is set, non-empty,
+   and holds two comma-separated entries.
+5. **Separate service.** Mainnet runs as its own deployment: its own URL,
+   its own secrets, its own logs.
+6. **Rate limit and RPC timeout reviewed** for mainnet traffic — sized for
+   mainnet, not copied from testnet defaults.
+7. **No key material.** (a) Confirm in the platform's own secret list that
+   `ENOKI_KEY`, `SPONSOR_DAILY_CAP`, and `SPONSOR_GLOBAL_DAILY_CAP` are
+   **unset** on the mainnet service. (b) Prove it at the edge: `POST
+/gas-station` and `POST /gas-station/execute` must both return **HTTP
+   503** with body `{"error": "sponsorship not configured"}`. Sponsorship
+   stays off for v1.
+8. **Health check and alerting live** on the mainnet service before it
+   takes traffic, including an alert on settle failures.
+9. **Rollback rehearsed.** Unset `ENABLE_MAINNET`, redeploy, and confirm
+   `/supported` returns to testnet-only. Then confirm a `sui:mainnet` `POST
+/settle` fails cleanly rather than hanging: HTTP **200** with
+   `{"success": false, "errorReason": "invalid_network", "transaction": "",
+"network": "sui:mainnet"}`. The request body must be well-formed enough
+   to reach that check — `x402Version: 2` on both the envelope and
+   `paymentPayload`, `paymentRequirements.scheme: "exact"`,
+   `paymentRequirements.network: "sui:mainnet"`, and a non-empty, decodable
+   `payload.transaction` (a spent testnet transaction works fine; the
+   request never reaches a chain). A missing or undecodable `transaction`
+   yields `invalid_payload`, not `invalid_network` — that's a malformed
+   rehearsal, not a rollback signal. Don't look for a 4xx: semantic
+   failures on this facilitator are always HTTP 200.
+10. **Post-enable registry check (semantic, not byte-wise).** `curl
+/supported | jq` on the mainnet service: the kinds set is exactly
+    `["sui:testnet", "sui:mainnet"]`, and the mainnet kind's `extra.usdc`
+    equals the tag confirmed in item 3 exactly. `extra.decimals` proves
+    nothing here (see below) — the decimals claim is only proven in item 3,
+    against on-chain coin metadata.
+11. **Deployed commit identity, proven where it's actually provable.**
+    Establish one chain of equalities: the SHA reviewed in item 1 == `git
+submodule status deploy/facilitator/upstream` == the `ARG
+UPSTREAM_COMMIT` literal in `deploy/facilitator/Dockerfile` ==
+    `deploy/facilitator/UPSTREAM.md`'s pinned-commit row == the commit
+    shown in the deploy platform's build log / image digest for the
+    running service. `/supported` cannot serve this purpose — see below.
+
+### What `/supported` cannot prove
+
+- **Commit identity.** `supported()` is a pure function of the enabled
+  network list and the two coin constants, so its output is identical
+  across every commit that leaves the config file alone. No fixture diff
+  is possible either: the server serialises compact JSON, the smoke
+  script writes pretty-printed.
+- **`extra.decimals`** — an unconditional literal for every network.
+- **`signers`** — an unconditional empty map.
+
+None of these three are evidence about a coin or about key material.
+
+### Mainnet USDC asset
+
+The mainnet USDC struct tag is not restated here. The single source is
+`deploy/facilitator/upstream/src/config.ts` (the `MAINNET.usdc` field) —
+confirm item 3 against that file, not against a copy of it.
 
 ## Troubleshooting
 
-| symptom | likely cause |
-|---|---|
-| build fails: `upstream/package.json` not found | submodule not initialised / platform skipped submodules |
-| `/supported` lists only `sui:testnet` | expected unless `ENABLE_MAINNET=1` |
-| `/verify` → `unexpected_verify_error` for every request | all gRPC endpoints unreachable or not gRPC (JSON-RPC URL?) |
-| 429 on `/verify` | `RATE_LIMIT` per IP per minute; behind a proxy make sure the platform appends the real client IP to `x-forwarded-for` |
-| `/gas-station` → 404 | `ENOKI_KEY` unset (by design for v1) |
+| symptom                                                 | likely cause                                                                                                          |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| build fails: `upstream/package.json` not found          | submodule not initialised / platform skipped submodules                                                               |
+| `/supported` lists only `sui:testnet`                   | expected unless `ENABLE_MAINNET=1`                                                                                    |
+| `/verify` → `unexpected_verify_error` for every request | all gRPC endpoints unreachable or not gRPC (JSON-RPC URL?)                                                            |
+| 429 on `/verify`                                        | `RATE_LIMIT` per IP per minute; behind a proxy make sure the platform appends the real client IP to `x-forwarded-for` |
+| `/gas-station` → 404                                    | `ENOKI_KEY` unset (by design for v1)                                                                                  |

@@ -4,13 +4,13 @@ Last updated 2026-08-23.
 
 ## Where things stand
 
-| Area | State |
-|---|---|
-| `@sui-x402/core`, `payer-sui`, `hono`, `express`, `next` | Complete for testnet. 349 unit and conformance tests. Published to npm as v0.1.0. |
-| Live settlement | Proven. The live loop settles a real $0.01 testnet payment on every push to master through this project's Railway facilitator; ten settlements on chain as of 2026-08-24, each verified. |
-| CI | Typecheck and unit tests on every push; the live loop runs on pushes to `master` when `PAYER_SECRET_KEY` is configured. |
-| Mainnet | Gated. Sellers need `allowMainnet: true`; payers need the mainnet genesis digest in `chainIdentifiers` (see below). |
-| Facilitator hosting | Deployed to Railway from `deploy/facilitator/`: `https://facilitator-production-1e79.up.railway.app` (testnet). |
+| Area                                                     | State                                                                                                                                                                                    |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@sui-x402/core`, `payer-sui`, `hono`, `express`, `next` | Complete for testnet. 349 unit and conformance tests. Published to npm as v0.1.0.                                                                                                        |
+| Live settlement                                          | Proven. The live loop settles a real $0.01 testnet payment on every push to master through this project's Railway facilitator; ten settlements on chain as of 2026-08-24, each verified. |
+| CI                                                       | Typecheck and unit tests on every push; the live loop runs on pushes to `master` when `PAYER_SECRET_KEY` is configured.                                                                  |
+| Mainnet                                                  | Gated. Sellers need `allowMainnet: true`; payers need the mainnet genesis digest in `chainIdentifiers` (see below).                                                                      |
+| Facilitator hosting                                      | Deployed to Railway from `deploy/facilitator/`: `https://facilitator-production-1e79.up.railway.app` (testnet).                                                                          |
 
 Digests of the first three settlements:
 [`GE85dg3w…`](https://testnet.suivision.xyz/txblock/GE85dg3wNUdfRKJpFW9bBz2qkk4qgvgihWxMrFzDfc4T),
@@ -39,11 +39,22 @@ E2E=1 X402_RESOURCE_URL=http://127.0.0.1:8402/paid/quote pnpm --filter @sui-x402
 ## Mainnet
 
 The payer refuses to build unless the chain its client reaches matches the
-offer's `network`. Only `sui:testnet` is pinned in `CHAIN_IDENTIFIERS`. To pay
-on mainnet, read the genesis checkpoint digest from a full node you trust
-(`GetServiceInfo.chain_id`), verify it, and pass it as
-`chainIdentifiers: { "sui:mainnet": "<digest>" }`. This is deliberately a
-manual step.
+offer's `network`. Only `sui:testnet` is pinned in `CHAIN_IDENTIFIERS` today;
+`sui:mainnet` throws `network_mismatch` before any coin is read for spending
+until a digest is pinned for it. Two routes reach mainnet:
+
+- **Repo-wide pin.** A human verifies the mainnet genesis checkpoint digest
+  against two independent sources and adds it to `CHAIN_IDENTIFIERS`,
+  following the hardening checklist in the
+  [facilitator runbook, "Mainnet"](facilitator-runbook.md#mainnet). Not done
+  yet — tracked in this repo's mainnet-enablement issues.
+- **Per-integrator override.** Any caller can pay on mainnet today without a
+  repo change: verify the digest yourself and pass it as
+  `chainIdentifiers: { "sui:mainnet": "<digest>" }`.
+
+Either route still needs the facilitator side of the checklist — separate
+service, trusted-only RPC endpoints, canary rollout — which lives in the
+runbook, not here.
 
 ## Not yet exercised live
 

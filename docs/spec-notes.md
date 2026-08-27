@@ -82,3 +82,13 @@ Live = `https://sui-facilitator.onrender.com`; pinned = submodule commit in
     1000 for split + transfer of USDC from a single coin (budget 4,014,604 —
     the simulation-derived budget carries ~70 % headroom over the real cost).
     `/settle` answered `success: true` with the digest and `amount: "10000"`.
+
+## 2026-08-27 — gas station capture
+
+14. **`/gas-station` answers 503, not the documented 404, when sponsorship is
+    off (2026-08-27).** The upstream README says both gas-station routes are
+    "absent (404) unless ENOKI_KEY is configured", but the pinned code returns
+    `503 {"error":"sponsorship not configured"}` and the live Railway
+    deployment was observed doing exactly that. The SDK follows the code and
+    live behavior: its probe and error mapping treat 503 as
+    `not_configured`, tolerating 404 for deployments matching the README.

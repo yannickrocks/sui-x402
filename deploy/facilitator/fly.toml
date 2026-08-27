@@ -7,6 +7,10 @@ primary_region = "iad"
   dockerfile = "Dockerfile"
 
 [env]
+  # This config is testnet-only. A `fly deploy` from it never touches
+  # mainnet until ENABLE_MAINNET and SUI_MAINNET_RPC are added out of band
+  # as `fly secrets` (see docs/facilitator-runbook.md "Mainnet") — neither
+  # belongs in this file.
   PORT = "4402"
   RPC_TIMEOUT_MS = "20000"
   RATE_LIMIT = "120"

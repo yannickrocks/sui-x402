@@ -13,7 +13,8 @@
         "PAY_TO",
         "ASSET",
         "AMOUNT",
-        "X402_RESOURCE_URL"
+        "X402_RESOURCE_URL",
+        "GAS_STATION_URL"
       ]
     }
   }
