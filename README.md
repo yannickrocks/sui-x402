@@ -8,8 +8,9 @@ reference facilitator, used unmodified and self-hosted, so nobody in this stack
 ever holds your funds or keys.
 
 > Status: **testnet, v0.1.0 on npm.** The live payment loop runs on
-> every push to master; ten settlements on chain as of 2026-08-24 (see
-> [Proof](#proof)). Mainnet is gated behind explicit opt-ins.
+> every push to master; more than a dozen settlements on chain as of
+> 2026-08-27 (see [Proof](#proof)). The gasless (sponsored) payer path is
+> implemented and staged for v0.2.0. Mainnet is gated behind explicit opt-ins.
 
 ## The problem
 
@@ -160,10 +161,10 @@ examples, the payer, and the pinned facilitator — verified on chain with exact
 · [`CKYr3pP6…`](https://testnet.suivision.xyz/txblock/CKYr3pP6Amrg62C9kxZX5w2UVfitDTBJeE2zjdfjnZZU)
 · [`5MGrTQ82…`](https://testnet.suivision.xyz/txblock/5MGrTQ82xhYeciurZssjTcnLvRn4rdp1wkorEJaA7bAB).
 More settle continuously: every push to master runs the live loop in CI
-through this project's Railway-hosted facilitator — ten on chain as of
-2026-08-24, most recently
+through this project's Railway-hosted facilitator — more than a dozen on
+chain as of 2026-08-27, among them
 ([`7QSxe8Zu…`](https://testnet.suivision.xyz/txblock/7QSxe8Zuu4FkWMPLLEy6uczUwBZH62A2xMC9Res3S1k1)).
-The unit and conformance suites add 349 tests; the money path went through two
+The unit and conformance suites add 381 tests; the money path went through two
 internal adversarial review rounds (recorded in [docs/decisions.md](docs/decisions.md)).
 
 ## Documentation
@@ -175,6 +176,7 @@ internal adversarial review rounds (recorded in [docs/decisions.md](docs/decisio
 | [Concepts](docs/concepts.md) | The payment lifecycle, headers, modes, expiry, retries |
 | [Guide: sell](docs/guides/sell.md) | Make a route payable with Hono, Express or Next.js |
 | [Guide: pay](docs/guides/pay.md) | Build a paying agent with `@sui-x402/payer-sui` |
+| [Guide: gasless](docs/guides/gasless.md) | Sponsored payments: pay with zero SUI through the facilitator's gas station |
 | [Security model](docs/security-model.md) | Trust boundaries, double-pay defenses, residual risks |
 | [Decisions](docs/decisions.md) | The design record, D1–D13, and what the reviews found |
 | [Status](docs/status.md) | What is proven, what is pending, how to run the live tests |

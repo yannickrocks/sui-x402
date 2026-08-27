@@ -549,7 +549,7 @@
       <div class="proof">
         <div><b>5 packages</b><span>v0.1.0 on npm</span></div>
         <div>
-          <b>349 tests</b
+          <b>381 tests</b
           ><span>one conformance suite certifies all three adapters</span>
         </div>
         <div>
@@ -703,7 +703,13 @@ app.get(<span class="s">"/paid/quote"</span>, (c) =&gt; c.json({ quote: <span cl
           <b>Testnet, v0.1.0.</b> The live payment loop runs on every push to
           master. Mainnet is gated behind explicit opt-ins on both sides —
           sellers need <code>allowMainnet: true</code>, payers must pin the
-          mainnet genesis digest themselves.
+          mainnet genesis digest themselves. New: the
+          <a
+            href="https://github.com/yannickrocks/sui-x402/blob/master/docs/guides/gasless.md"
+            >gasless payer path</a
+          >
+          — pay with zero SUI through the facilitator's gas station — is
+          implemented and staged for v0.2.0.
         </div>
       </section>
 
