@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>sui-x402 — per-request USDC payments for APIs on Sui</title>
+    <meta
+      name="description"
+      content="TypeScript SDK and middleware for the x402 v2 protocol on Sui: make any HTTP endpoint payable in ten lines, and give an agent a fetch that pays for what it reads."
+    />
+    <meta property="og:title" content="sui-x402" />
+    <meta
+      property="og:description"
+      content="Per-request USDC payments for APIs on Sui, built for agents. x402 v2, non-custodial, testnet-proven."
+    />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💧</text></svg>"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --abyss: #051622;
+        --depth: #0a2334;
+        --panel: #0d2a3f;
+        --line: rgba(120, 180, 230, 0.16);
+        --foam: #e9f4fb;
+        --mist: #7fa5bd;
+        --sui: #4da2ff;
+        --settle: #59e2a4;
+        --amber: #f5b94b;
+        --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+        --sans: "Instrument Sans", system-ui, -apple-system, sans-serif;
+        --disp: "Bricolage Grotesque", Georgia, serif;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        background: linear-gradient(
+          180deg,
+          #03101a 0%,
+          var(--abyss) 18%,
+          #071c2c 60%,
+          #041220 100%
+        );
+        color: var(--foam);
+        font-family: var(--sans);
+        font-size: 16.5px;
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+      }
+      a {
+        color: var(--sui);
+        text-decoration: none;
+      }
+      a:hover {
+        text-decoration: underline;
+      }
+      a:focus-visible,
+      button:focus-visible {
+        outline: 2px solid var(--sui);
+        outline-offset: 3px;
+        border-radius: 2px;
+      }
+      .wrap {
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 0 24px;
+      }
+      code,
+      pre {
+        font-family: var(--mono);
+      }
+
+      /* nav */
+      nav {
+        display: flex;
+        align-items: center;
+        gap: 22px;
+        padding: 22px 0;
+        font-size: 14.5px;
+      }
+      nav .mark {
+        font-family: var(--mono);
+        font-weight: 700;
+        font-size: 16px;
+        color: var(--foam);
+        letter-spacing: -0.02em;
+      }
+      nav .mark span {
+        color: var(--sui);
+      }
+      nav .links {
+        margin-left: auto;
+        display: flex;
+        gap: 20px;
+        flex-wrap: wrap;
+      }
+      nav .links a {
+        color: var(--mist);
+      }
+      nav .links a:hover {
+        color: var(--foam);
+        text-decoration: none;
+      }
+
+      /* hero */
+      .hero {
+        display: grid;
+        grid-template-columns: 1.05fr 1fr;
+        gap: 48px;
+        align-items: center;
+        padding: 64px 0 72px;
+      }
+      .eyebrow {
+        font-family: var(--mono);
+        font-size: 12.5px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--sui);
+        margin-bottom: 18px;
+      }
+      h1 {
+        font-family: var(--disp);
+        font-weight: 800;
+        font-size: clamp(34px, 4.6vw, 54px);
+        line-height: 1.06;
+        letter-spacing: -0.025em;
+      }
+      h1 .quiet {
+        color: var(--mist);
+        font-weight: 600;
+      }
+      .pitch {
+        color: var(--mist);
+        margin: 20px 0 28px;
+        max-width: 44ch;
+      }
+      .pitch strong {
+        color: var(--foam);
+        font-weight: 600;
+      }
+      .cta {
+        display: flex;
+        gap: 14px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .install {
+        font-family: var(--mono);
+        font-size: 14px;
+        background: var(--depth);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 11px 16px;
+        color: var(--foam);
+      }
+      .install b {
+        color: var(--settle);
+        font-weight: 500;
+      }
+      .btn {
+        display: inline-block;
+        background: var(--sui);
+        color: #04121f;
+        font-weight: 600;
+        font-size: 15px;
+        padding: 11px 20px;
+        border-radius: 8px;
+      }
+      .btn:hover {
+        text-decoration: none;
+        filter: brightness(1.1);
+      }
+
+      /* terminal — the signature */
+      .term {
+        background: #04121d;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        box-shadow: 0 24px 60px -30px rgba(0, 40, 80, 0.8);
+        overflow: hidden;
+      }
+      .term-bar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 11px 16px;
+        border-bottom: 1px solid var(--line);
+        background: var(--depth);
+      }
+      .term-bar i {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--line);
+        display: inline-block;
+      }
+      .term-bar .t {
+        margin-left: auto;
+        font-family: var(--mono);
+        font-size: 11.5px;
+        color: var(--mist);
+      }
+      .term-body {
+        padding: 18px 20px 22px;
+        font-family: var(--mono);
+        font-size: 13px;
+        line-height: 1.85;
+        min-height: 305px;
+      }
+      .term-body .ln {
+        display: block;
+        white-space: pre-wrap;
+        overflow-wrap: break-word;
+      }
+      body.js .term-body .ln {
+        opacity: 0;
+        transform: translateY(4px);
+        transition: opacity 0.3s ease, transform 0.3s ease;
+        pointer-events: none;
+      }
+      body.js .term-body .ln.on {
+        opacity: 1;
+        transform: none;
+        pointer-events: auto;
+      }
+      .c-req {
+        color: var(--foam);
+      }
+      .c-402 {
+        color: var(--amber);
+      }
+      .c-hdr {
+        color: var(--mist);
+      }
+      .c-note {
+        color: #6f95ac;
+        font-style: italic;
+      }
+      .c-200 {
+        color: var(--settle);
+      }
+      .c-dig a {
+        color: var(--settle);
+        border-bottom: 1px dotted var(--settle);
+      }
+      .replay {
+        display: none;
+        margin: 10px 20px 16px;
+        background: none;
+        border: 1px solid var(--line);
+        color: var(--mist);
+        font-family: var(--mono);
+        font-size: 11.5px;
+        padding: 5px 12px;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+      body.js .replay {
+        display: inline-block;
+      }
+      .replay:hover {
+        color: var(--foam);
+        border-color: var(--mist);
+      }
+
+      /* proof strip */
+      .proof {
+        display: flex;
+        gap: 0;
+        border-block: 1px solid var(--line);
+        flex-wrap: wrap;
+      }
+      .proof > div {
+        flex: 1 1 200px;
+        padding: 22px 24px;
+        border-inline-start: 1px solid var(--line);
+      }
+      .proof > div:first-child {
+        border-inline-start: none;
+      }
+      .proof b {
+        display: block;
+        font-family: var(--mono);
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--foam);
+      }
+      .proof span {
+        font-size: 13.5px;
+        color: var(--mist);
+      }
+      .proof a {
+        font-size: 13.5px;
+      }
+
+      /* sections */
+      section {
+        padding: 72px 0 0;
+      }
+      h2 {
+        font-family: var(--disp);
+        font-weight: 700;
+        font-size: clamp(24px, 3vw, 32px);
+        letter-spacing: -0.02em;
+        margin-bottom: 10px;
+      }
+      .sub {
+        color: var(--mist);
+        max-width: 60ch;
+        margin-bottom: 34px;
+      }
+      .duo {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 24px;
+      }
+      .card {
+        background: var(--depth);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      .card h3 {
+        font-family: var(--mono);
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--sui);
+        padding: 14px 20px;
+        border-bottom: 1px solid var(--line);
+        letter-spacing: 0.02em;
+      }
+      .card pre {
+        padding: 18px 20px;
+        font-size: 12.8px;
+        line-height: 1.75;
+        overflow-x: auto;
+        color: #c6dcec;
+      }
+      .card pre .k {
+        color: var(--sui);
+      }
+      .card pre .s {
+        color: var(--settle);
+      }
+      .card pre .m {
+        color: #6f95ac;
+      }
+
+      /* packages */
+      .pkgs {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      .pkg {
+        display: grid;
+        grid-template-columns: 250px 1fr auto;
+        gap: 18px;
+        align-items: baseline;
+        padding: 16px 22px;
+        border-top: 1px solid var(--line);
+        background: var(--depth);
+      }
+      .pkg:first-child {
+        border-top: none;
+      }
+      .pkg code {
+        font-size: 13.5px;
+        font-weight: 500;
+        color: var(--foam);
+      }
+      .pkg p {
+        font-size: 14px;
+        color: var(--mist);
+      }
+      .pkg a {
+        font-family: var(--mono);
+        font-size: 12.5px;
+        white-space: nowrap;
+      }
+
+      /* steps — a real wire sequence, so numbers carry meaning */
+      .steps {
+        counter-reset: s;
+        display: grid;
+        gap: 0;
+        border-inline-start: 1px solid var(--line);
+        margin-inline-start: 8px;
+      }
+      .step {
+        position: relative;
+        padding: 0 0 30px 34px;
+      }
+      .step:last-child {
+        padding-bottom: 6px;
+      }
+      .step::before {
+        counter-increment: s;
+        content: counter(s);
+        position: absolute;
+        left: -14px;
+        top: 0;
+        width: 27px;
+        height: 27px;
+        border-radius: 50%;
+        background: var(--abyss);
+        border: 1px solid var(--sui);
+        color: var(--sui);
+        font-family: var(--mono);
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .step h4 {
+        font-size: 16px;
+        font-weight: 600;
+        margin-bottom: 4px;
+      }
+      .step h4 code {
+        font-size: 13.5px;
+        color: var(--amber);
+      }
+      .step p {
+        font-size: 14.5px;
+        color: var(--mist);
+        max-width: 64ch;
+      }
+      .step p code {
+        font-size: 12.8px;
+        color: #a8c6da;
+      }
+
+      /* footer */
+      .notice {
+        margin-top: 76px;
+        background: var(--depth);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 20px 24px;
+        font-size: 14.5px;
+        color: var(--mist);
+      }
+      .notice b {
+        color: var(--amber);
+        font-weight: 600;
+      }
+      footer {
+        display: flex;
+        gap: 20px;
+        flex-wrap: wrap;
+        align-items: center;
+        padding: 34px 0 46px;
+        font-size: 13.5px;
+        color: var(--mist);
+      }
+      footer .lic {
+        margin-left: auto;
+      }
+
+      @media (max-width: 880px) {
+        .hero {
+          grid-template-columns: 1fr;
+          gap: 36px;
+          padding-top: 36px;
+        }
+        .duo {
+          grid-template-columns: 1fr;
+        }
+        .pkg {
+          grid-template-columns: 1fr;
+          gap: 4px;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <nav>
+        <span class="mark">sui-<span>x402</span></span>
+        <span class="links">
+          <a href="https://github.com/yannickrocks/sui-x402">GitHub</a>
+          <a href="https://www.npmjs.com/org/sui-x402">npm</a>
+          <a href="https://github.com/yannickrocks/sui-x402/tree/master/docs"
+            >Docs</a
+          >
+          <a href="https://github.com/x402-foundation/x402">x402 spec</a>
+        </span>
+      </nav>
+
+      <header class="hero">
+        <div>
+          <p class="eyebrow">x402 v2 · Sui · USDC</p>
+          <h1>
+            APIs that charge per request.<br /><span class="quiet"
+              >Agents that pay per fetch.</span
+            >
+          </h1>
+          <p class="pitch">
+            A TypeScript SDK and middleware suite for the x402 protocol on Sui.
+            Make any HTTP endpoint payable in <strong>about ten lines</strong>,
+            and give an agent a
+            <strong><code>fetch</code> that pays</strong> for what it reads —
+            non-custodial, settled on chain before your handler runs.
+          </p>
+          <div class="cta">
+            <span class="install">$ <b>npm i @sui-x402/hono</b></span>
+            <a
+              class="btn"
+              href="https://github.com/yannickrocks/sui-x402#readme"
+              >Get started</a
+            >
+          </div>
+        </div>
+
+        <div>
+          <div class="term" aria-label="A live x402 payment exchange, replayed">
+            <div class="term-bar">
+              <i></i><i></i><i></i
+              ><span class="t">agent ⇄ seller — one paid request</span>
+            </div>
+            <pre
+              class="term-body"
+              id="tape"
+            ><span class="ln c-req">→ GET /paid/quote</span><span class="ln c-402">← 402 Payment Required</span><span class="ln c-hdr">  PAYMENT-REQUIRED: 0.01 USDC → 0xfcf5…82ff</span><span class="ln c-note">  payer: list coins · simulate · self-check</span><span class="ln c-note">  sign — bound to chain id + epoch + nonce</span><span class="ln c-req">→ GET /paid/quote  +PAYMENT-SIGNATURE</span><span class="ln c-hdr">  facilitator: /verify dry-run ✓ · /settle → finality ✓</span><span class="ln c-200">← 200 OK</span><span class="ln c-dig">  PAYMENT-RESPONSE: settled · <a href="https://testnet.suivision.xyz/txblock/F1YSaQdcFiMgV364osSCDAVNuD4tPPPAQtZVXMACh39k">digest F1YSaQdc…Ch39k</a></span></pre>
+            <button class="replay" id="replay" type="button">↻ replay</button>
+          </div>
+        </div>
+      </header>
+
+      <div class="proof">
+        <div><b>5 packages</b><span>v0.1.0 on npm</span></div>
+        <div>
+          <b>349 tests</b
+          ><span>one conformance suite certifies all three adapters</span>
+        </div>
+        <div>
+          <b>Every push settles</b
+          ><span
+            >CI pays $0.01 USDC on testnet,
+            <a
+              href="https://testnet.suivision.xyz/txblock/F1YSaQdcFiMgV364osSCDAVNuD4tPPPAQtZVXMACh39k"
+              >verified on chain</a
+            ></span
+          >
+        </div>
+        <div>
+          <b>0 custody</b
+          ><span>signed bytes relay untouched; nobody holds your keys</span>
+        </div>
+      </div>
+
+      <section>
+        <h2>Both sides of the 402</h2>
+        <p class="sub">
+          The seller names a price; the payer signs a Sui transaction for
+          exactly that amount; the open-source reference facilitator —
+          self-hosted, unmodified — verifies and settles it before your handler
+          runs.
+        </p>
+        <div class="duo">
+          <div class="card">
+            <h3>sell — one paid route (Hono · Express · Next.js)</h3>
+            <pre><code><span class="k">import</span> { x402 } <span class="k">from</span> <span class="s">"@sui-x402/hono"</span>;
+
+app.use(<span class="s">"/paid/*"</span>, x402({
+  payTo: <span class="s">"0xYOUR_SUI_ADDRESS"</span>,
+  amount: <span class="s">"10000"</span>,        <span class="m">// 0.01 USDC, atomic units</span>
+  asset: <span class="s">"0xa1ec…7e29::usdc::USDC"</span>,
+  network: <span class="s">"sui:testnet"</span>,
+  facilitator: <span class="s">"https://your-facilitator.example"</span>,
+}));
+app.get(<span class="s">"/paid/quote"</span>, (c) =&gt; c.json({ quote: <span class="s">"1.00"</span> }));</code></pre>
+          </div>
+          <div class="card">
+            <h3>pay — a fetch that pays</h3>
+            <pre><code><span class="k">import</span> { SuiGrpcClient } <span class="k">from</span> <span class="s">"@mysten/sui/grpc"</span>;
+<span class="k">import</span> { SuiX402Payer, ed25519SignerFromEnv }
+  <span class="k">from</span> <span class="s">"@sui-x402/payer-sui"</span>;
+
+<span class="k">const</span> payer = <span class="k">new</span> SuiX402Payer({
+  client: <span class="k">new</span> SuiGrpcClient({ network: <span class="s">"testnet"</span>,
+    baseUrl: <span class="s">"https://fullnode.testnet.sui.io:443"</span> }),
+  signer: ed25519SignerFromEnv(),  <span class="m">// PAYER_SECRET_KEY</span>
+});
+<span class="k">const</span> { response, receipt } =
+  <span class="k">await</span> payer.fetchWithReceipt(<span class="s">"https://api.example/paid/quote"</span>);</code></pre>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>Five packages, one wire format</h2>
+        <p class="sub">
+          Schemas are derived from captured live facilitator responses, not from
+          the spec alone — where the two disagree, the code follows what
+          settles.
+        </p>
+        <div class="pkgs">
+          <div class="pkg">
+            <code>@sui-x402/core</code>
+            <p>
+              Wire schemas, header codec, reason codes, and the
+              framework-agnostic seller core
+            </p>
+            <a href="https://www.npmjs.com/package/@sui-x402/core">npm ↗</a>
+          </div>
+          <div class="pkg">
+            <code>@sui-x402/payer-sui</code>
+            <p>
+              Coin discovery, payment transaction construction, signing, and the
+              fetch that pays
+            </p>
+            <a href="https://www.npmjs.com/package/@sui-x402/payer-sui"
+              >npm ↗</a
+            >
+          </div>
+          <div class="pkg">
+            <code>@sui-x402/hono</code>
+            <p>Hono middleware over the seller core</p>
+            <a href="https://www.npmjs.com/package/@sui-x402/hono">npm ↗</a>
+          </div>
+          <div class="pkg">
+            <code>@sui-x402/express</code>
+            <p>Express middleware over the seller core</p>
+            <a href="https://www.npmjs.com/package/@sui-x402/express">npm ↗</a>
+          </div>
+          <div class="pkg">
+            <code>@sui-x402/next</code>
+            <p>Next.js route-handler wrapper over the seller core</p>
+            <a href="https://www.npmjs.com/package/@sui-x402/next">npm ↗</a>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>What one paid request does</h2>
+        <p class="sub">
+          Strict mode, the default: settlement is final before a single byte of
+          your content is served. A facilitator outage becomes
+          <code>503 + Retry-After</code>, never free content.
+        </p>
+        <div class="steps">
+          <div class="step">
+            <h4>Offer — <code>402</code></h4>
+            <p>
+              The seller answers with <code>PAYMENT-REQUIRED</code>: price in
+              atomic units, the full USDC coin type, payee, network.
+            </p>
+          </div>
+          <div class="step">
+            <h4>Sign</h4>
+            <p>
+              The payer lists its coins, simulates a
+              <code>split + transfer</code> of exactly the amount, checks the
+              simulated balance change itself, and signs — bound to the chain id
+              and current epoch, with a random nonce.
+            </p>
+          </div>
+          <div class="step">
+            <h4>Retry with payment</h4>
+            <p>
+              The same request again, now carrying
+              <code>PAYMENT-SIGNATURE</code> — the signed transaction, base64.
+              The seller relays those bytes untouched.
+            </p>
+          </div>
+          <div class="step">
+            <h4>Verify &amp; settle</h4>
+            <p>
+              The facilitator dry-runs the transaction, checks for replays,
+              broadcasts it, and waits for finality on Sui.
+            </p>
+          </div>
+          <div class="step">
+            <h4>Serve — <code>200</code></h4>
+            <p>
+              Only now does the handler run. The response carries
+              <code>PAYMENT-RESPONSE</code> with the on-chain settlement digest.
+            </p>
+          </div>
+        </div>
+
+        <div class="notice">
+          <b>Testnet, v0.1.0.</b> The live payment loop runs on every push to
+          master. Mainnet is gated behind explicit opt-ins on both sides —
+          sellers need <code>allowMainnet: true</code>, payers must pin the
+          mainnet genesis digest themselves.
+        </div>
+      </section>
+
+      <footer>
+        <a href="https://github.com/yannickrocks/sui-x402">GitHub</a>
+        <a href="https://www.npmjs.com/org/sui-x402">npm</a>
+        <a
+          href="https://github.com/yannickrocks/sui-x402/blob/master/docs/security-model.md"
+          >Security model</a
+        >
+        <a
+          href="https://github.com/yannickrocks/sui-x402/blob/master/docs/facilitator-runbook.md"
+          >Facilitator runbook</a
+        >
+        <span class="lic">Apache-2.0</span>
+      </footer>
+    </div>
+    <script>
+      (function () {
+        if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+        document.body.classList.add("js");
+        var lines = document.querySelectorAll("#tape .ln");
+        var delays = [0, 700, 1150, 1900, 2500, 3300, 4100, 5000, 5450];
+        var timers = [];
+        function play() {
+          timers.forEach(clearTimeout);
+          timers = [];
+          lines.forEach(function (l) {
+            l.classList.remove("on");
+          });
+          lines.forEach(function (l, i) {
+            timers.push(
+              setTimeout(function () {
+                l.classList.add("on");
+              }, delays[i] || i * 600)
+            );
+          });
+        }
+        play();
+        document.getElementById("replay").addEventListener("click", play);
+      })();
+    </script>
+  </body>
+</html>
