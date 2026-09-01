@@ -219,11 +219,26 @@ Check every box before setting `ENABLE_MAINNET=1`.
 3. **Mainnet asset confirmed** against two independent sources, including
    on-chain coin metadata showing `decimals` 6.
 
-   > **Confirmation record** (fill in when this step runs):
+   > **Confirmation record** (confirmed 2026-09-01, issue #6):
    >
-   > - Date: _TBD_
-   > - Source A: _TBD_
-   > - Source B: _TBD_
+   > - Date: 2026-09-01
+   > - Source A: Circle's official "USDC contract addresses" page
+   >   (developers.circle.com/stablecoins/usdc-contract-addresses), Sui
+   >   mainnet row — read directly by the owner, independently re-fetched
+   >   in-session.
+   > - Source B: on-chain coin metadata via gRPC `GetCoinInfo` from two
+   >   independent mainnet full nodes (`fullnode.mainnet.sui.io` and
+   >   `sui-grpc.publicnode.com`, both reporting mainnet chain id
+   >   `4btiuiMPvEENsttpZC7CZ53DruC3MAgfznDbASZ7DR6S`): the coin type
+   >   exists, `decimals` is 6, both nodes return the same metadata object
+   >   (`0x75cf…2b4a`) naming USDC as a Circle-issued regulated stablecoin.
+   >   Queries were agent-executed at the owner's direction.
+   >
+   > Both sources and the pinned facilitator config
+   > (`deploy/facilitator/upstream/src/config.ts`, `mainnet.usdc`) are
+   > identical after `normalizeStructTag`. Per issue #6's acceptance
+   > criteria the coin type string itself is deliberately not copied here —
+   > the pinned config remains the single in-repo copy.
 
 4. **RPC endpoints trusted — and actually configured.** `SUI_MAINNET_RPC`
    holds two endpoints you control or independently trust — never a
