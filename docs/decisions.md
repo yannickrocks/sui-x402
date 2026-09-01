@@ -98,7 +98,17 @@ prior-on-chain path still re-asserts the payee's credit against execution
 truth. SUI-denominated payments are excluded: sourced from the sponsor's gas
 coin, they leave no payer-owned input to prove non-execution with.
 
-## Review rounds
+**D15 · No repo-wide `sui:mainnet` pin; integrators verify the digest themselves.**
+The genesis checkpoint digest in `CHAIN_IDENTIFIERS` is the payer's only
+defence against a client pointed at the wrong chain, and a wrong value is
+strictly worse than none — it silently disables the check. Publishing a
+mainnet pin would make its correctness a permanent obligation of these
+packages for every downstream consumer. Instead the packages pin nothing
+beyond `sui:testnet`; each integrator verifies the mainnet digest against
+two independent sources and passes it via `chainIdentifiers`
+([status.md, "Mainnet"](status.md#mainnet)). The rejected alternative — a
+maintainer-verified repo-wide pin — remains open if integrator demand
+justifies taking on that obligation.
 
 The money path (`packages/payer-sui`) went through two structured internal
 reviews (correctness, security, protocol conformance) and the seller side

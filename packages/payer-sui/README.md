@@ -143,7 +143,8 @@ never mistaken for one that was never paid.
 connected to (`getChainIdentifier`) is the one the offer's `network` names.
 Only `sui:testnet` is pinned (`CHAIN_IDENTIFIERS`); to pay on any other network
 pass its genesis checkpoint digest in `chainIdentifiers` — a deliberate human
-step.
+step. Verify the value against two independent sources first; the
+[status page](../../docs/status.md#mainnet) walks through it.
 
 **Expiry.** Every payment carries a `ValidDuring` expiration bound to the next
 epoch, the chain identifier and a random nonce: an unsettled payment dies with
