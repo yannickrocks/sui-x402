@@ -49,6 +49,17 @@ if (urls.length === 0) {
 // GetServiceInfo takes an empty message, so the body is five zero bytes.
 const EMPTY_FRAME = new Uint8Array([0, 0, 0, 0, 0]);
 
+// Some providers authenticate with the API key in the URL path, so never print
+// an endpoint verbatim — origin plus a marker is enough to identify it.
+const safe = (u) => {
+  try {
+    const { origin, pathname } = new URL(u);
+    return pathname === "/" || pathname === "" ? origin : `${origin}/…`;
+  } catch {
+    return "(unparseable url)";
+  }
+};
+
 // grpc-message is percent-encoded, but a server may send a bare '%'. Decoding
 // must not throw, or a real "returned status N" result gets mislabelled.
 const decodeMaybe = (s) => {
@@ -129,7 +140,9 @@ for (const [i, baseUrl] of urls.entries()) {
   }
   if (!out.ok) failed++;
   console.log(
-    `${out.ok ? "PASS" : "FAIL"}  [${role}] ${baseUrl}\n      ${out.reason}`
+    `${out.ok ? "PASS" : "FAIL"}  [${role}] ${safe(baseUrl)}\n      ${
+      out.reason
+    }`
   );
 }
 

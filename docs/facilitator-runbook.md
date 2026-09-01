@@ -251,10 +251,17 @@ Check every box before setting `ENABLE_MAINNET=1`.
    and holds two comma-separated entries.
 
    Protocol constrains the choice as much as trust does: most Sui gRPC
-   endpoints cannot be used here at all, and the two that can are a
-   self-hosted fullnode or a keyed provider behind the proxy in
-   `deploy/rpc-proxy/`. See [D16](decisions.md) for why, and that
-   directory's README for the measurements.
+   endpoints cannot be used here at all, because the facilitator can send
+   only a base URL and speaks gRPC-Web. What works is a self-hosted
+   fullnode, a provider that accepts its key as a URL path segment, or a
+   header-only provider behind the proxy in `deploy/rpc-proxy/`. Chainstack
+   accepts the key in the path — `https://<host>/<key>`, verified through
+   `SuiGrpcClient` — so it needs no proxy. See [D16](decisions.md).
+
+   The key belongs in `SUI_MAINNET_RPC` as a platform secret and nowhere
+   else. It is safe from the facilitator's own logs (failover is logged by
+   endpoint index, and transport errors name only the host), but treat the
+   whole variable as secret and never echo it in a shell that logs.
 
    Verify rather than assume — the facilitator logs a failover only when
    one happens, so a broken second endpoint stays invisible until the

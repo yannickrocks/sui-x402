@@ -111,16 +111,26 @@ maintainer-verified repo-wide pin — remains open if integrator demand
 justifies taking on that obligation.
 
 **D16 · A mainnet failover RPC needs a header-injecting proxy, or your own
-node.** The facilitator builds its client from a base URL alone and speaks
-gRPC-Web rather than native gRPC, and those two facts together disqualify most
-Sui endpoints: free public ones tend to reject gRPC-Web outright, and the
-commercial ones authenticate with a header the facilitator has no way to send.
-Since the facilitator is vendored unmodified, that leaves a self-hosted
-fullnode (gRPC-Web, no auth) or a keyed provider behind a proxy supplying the
-header — gRPC-Web is ordinary HTTP POST, so a stock reverse proxy carries it
-intact, which is what `deploy/rpc-proxy/` does; its README records the
-per-provider measurements. The cost is a second hop and a second thing to
-trust, bounded by this being the _failover_ endpoint, and
+node — unless the provider accepts the key in the URL.** The facilitator builds
+its client from a base URL alone and speaks gRPC-Web rather than native gRPC,
+and those two facts together disqualify most Sui endpoints: free public ones
+tend to reject gRPC-Web outright, and the commercial ones document an
+`x-token` header the facilitator has no way to send. The workable options are
+therefore a self-hosted fullnode (gRPC-Web, no auth), a provider that also
+accepts its key as a URL path segment, or a keyed provider behind a proxy that
+supplies the header — gRPC-Web is ordinary HTTP POST, so a stock reverse proxy
+carries it intact, which is what `deploy/rpc-proxy/` does.
+
+Chainstack turned out to accept both: measured against the pinned
+`@mysten/sui`, `https://<host>/<key>` authenticates, returns the mainnet chain
+id, and works through `SuiGrpcClient` itself, while an unauthenticated request
+gets `401 / grpc-status 16`. So the deployed configuration points the
+facilitator straight at it and `deploy/rpc-proxy/` stays unused — kept because
+it is still the answer for the header-only providers, and because switching to
+one should not mean rediscovering this. A key in the URL is safe from the logs
+that matter here: failover is logged by endpoint index, not URL, and transport
+errors carry only the host. The cost is that this remains the _failover_
+endpoint and
 `deploy/verify-rpc-endpoints.mjs` exists because a broken failover is
 otherwise invisible until the primary fails. The cleaner fix — per-endpoint
 headers upstream — has been raised with the facilitator and would retire the

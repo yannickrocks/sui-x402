@@ -1,5 +1,13 @@
 # RPC proxy — a trusted second endpoint for a keyed provider
 
+> **Not part of the current deployment.** The provider in use (Chainstack)
+> accepts its key as a URL path segment, so the facilitator points straight at
+> it and needs no proxy — see [D16](../../docs/decisions.md). This directory is
+> kept for the providers that are header-only (Ankr, BlockPi, ZAN, QuickNode):
+> if you switch to one of those, or Chainstack stops accepting path auth, this
+> is the way back. Deploy it only if `deploy/verify-rpc-endpoints.mjs` cannot
+> authenticate your provider from a URL alone.
+
 ## Why this exists
 
 `SUI_MAINNET_RPC` should hold **two** endpoints you trust, because the
