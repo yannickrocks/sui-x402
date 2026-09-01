@@ -18,6 +18,7 @@
  */
 import type { z } from "zod";
 import {
+  AmountString,
   HEADER_PAYMENT_REQUIRED,
   HEADER_PAYMENT_RESPONSE,
   HeaderError,
@@ -41,7 +42,11 @@ const SETTLE_TIMEOUT_HEADROOM_MS = 10_000;
 const JSON_CONTENT_TYPE = "application/json";
 
 export interface SettleFailure {
-  /** A facilitator reason code, or a `FacilitatorError` kind when the settle call itself failed. */
+  /**
+   * A facilitator reason code, a `FacilitatorError` kind when the settle call
+   * itself failed, or `"settlement_mismatch"` when the facilitator reported
+   * success for a settlement that does not match this seller's offer.
+   */
   reason: string;
   payer: string | null;
   /** Settlement digest, when one was broadcast before the failure. */
@@ -347,13 +352,41 @@ export function createSeller(options: SellerOptions): Seller {
   };
 
   /** POSTs /settle and reports the outcome; throws `FacilitatorError` when the call itself fails. */
+  /**
+   * A `success: true` is the facilitator's claim, not proof — and it is the
+   * only evidence the seller gets, so check it against the offer the seller
+   * itself made before releasing the resource.
+   *
+   * Deliberately partial: `SettleResponse` carries no `payTo`, so a settlement
+   * that credited a different payee for the same transaction bytes is not
+   * detectable from here — that one belongs to the facilitator, which must
+   * bind a cached settle result to the caller's requirements. A response that
+   * omits the optional `amount` likewise skips the amount check.
+   */
+  const accepted = (settle: SettleResponse): boolean => {
+    if (!settle.success) return false;
+    // "" means the facilitator failed before resolving a network, which cannot
+    // coexist with success — so no exemption for it here.
+    if (settle.network !== requirements.network) return false;
+    if (settle.amount === undefined) return true;
+    // Unconstrained on the wire, unlike requirements.amount: reject anything
+    // that is not a positive base-10 string before BigInt widens it (BigInt
+    // would otherwise happily read "0x10" as 16).
+    if (!AmountString.safeParse(settle.amount).success) return false;
+    return BigInt(settle.amount) >= BigInt(requirements.amount);
+  };
+
   const settleAndReport = async (body: unknown): Promise<SettleResponse> => {
     const settle = await post("/settle", body, SettleResponse, settleTimeoutMs);
-    if (settle.success) report(() => onSettled?.(settle));
+    if (accepted(settle)) report(() => onSettled?.(settle));
     else {
       report(() =>
         onSettleFailure?.({
-          reason: settle.errorReason ?? "unexpected_settle_error",
+          // A settlement that succeeded but does not match the offer is a
+          // distinct operational signal from one the facilitator rejected.
+          reason: settle.success
+            ? "settlement_mismatch"
+            : settle.errorReason ?? "unexpected_settle_error",
           payer: settle.payer ?? null,
           digest: settle.transaction === "" ? null : settle.transaction,
         })
@@ -368,7 +401,7 @@ export function createSeller(options: SellerOptions): Seller {
   ): Promise<SettleResponse | null> => {
     try {
       const settle = await settleAndReport(body);
-      return settle.success ? settle : null;
+      return accepted(settle) ? settle : null;
     } catch (e) {
       report(() =>
         onSettleFailure?.({
@@ -395,7 +428,7 @@ export function createSeller(options: SellerOptions): Seller {
       // digest, so a retry cannot pay twice.
       return unavailable(e);
     }
-    if (!settle.success)
+    if (!accepted(settle))
       return askForPayment(
         url,
         settle.errorReason ?? "unexpected_settle_error"

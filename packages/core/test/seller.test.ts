@@ -15,13 +15,17 @@ import {
   type SellerOptions,
 } from "../src/index.js";
 import { fixture } from "./fixtures.js";
-import { type ConformanceTarget, runSellerConformance } from "./seller-conformance.js";
+import {
+  type ConformanceTarget,
+  runSellerConformance,
+} from "./seller-conformance.js";
 
 const terms = PaymentRequired.parse(fixture("demo-402.payment-required.json"));
 const live = terms.accepts[0];
 const supported = Supported.parse(fixture("facilitator-supported.live.json"));
 const URL_UNDER_TEST = "https://seller.test/paid/whales";
-const PAYER = "0x9c1e4a3d1f9c1e4a3d1f9c1e4a3d1f9c1e4a3d1f9c1e4a3d1f9c1e4a3d1f9c1e";
+const PAYER =
+  "0x9c1e4a3d1f9c1e4a3d1f9c1e4a3d1f9c1e4a3d1f9c1e4a3d1f9c1e4a3d1f9c1e";
 
 const SETTLE_OK: SettleResponse = {
   success: true,
@@ -45,10 +49,18 @@ const PAYMENT_HEADER = encodeHeader(PAYMENT_DOCUMENT);
 
 type Route = (init: RequestInit | undefined) => Promise<Response>;
 
-const replies = (json: unknown, status = 200): Route => async () =>
-  new Response(JSON.stringify(json), { status, headers: { "content-type": "application/json" } });
+const replies =
+  (json: unknown, status = 200): Route =>
+  async () =>
+    new Response(JSON.stringify(json), {
+      status,
+      headers: { "content-type": "application/json" },
+    });
 
-const sends = (body: string, status = 200): Route => async () => new Response(body, { status });
+const sends =
+  (body: string, status = 200): Route =>
+  async () =>
+    new Response(body, { status });
 
 const refuses: Route = async () => {
   throw new TypeError("fetch failed");
@@ -58,15 +70,25 @@ const refuses: Route = async () => {
 const hangs: Route = (init) =>
   new Promise((_resolve, reject) => {
     const signal = init?.signal;
-    if (signal instanceof AbortSignal) signal.addEventListener("abort", () => reject(signal.reason));
+    if (signal instanceof AbortSignal)
+      signal.addEventListener("abort", () => reject(signal.reason));
   });
 
-const scripted = (routes: { verify?: Route; settle?: Route; supported?: Route }) => {
-  const calls: { url: string; init: RequestInit | undefined; body: unknown }[] = [];
+const scripted = (routes: {
+  verify?: Route;
+  settle?: Route;
+  supported?: Route;
+}) => {
+  const calls: { url: string; init: RequestInit | undefined; body: unknown }[] =
+    [];
   const fetchImpl: typeof globalThis.fetch = (input, init) => {
     const url = String(input);
     calls.push({ url, init, body: JSON.parse(String(init?.body ?? "null")) });
-    const route = url.endsWith("/settle") ? routes.settle : url.endsWith("/supported") ? routes.supported : routes.verify;
+    const route = url.endsWith("/settle")
+      ? routes.settle
+      : url.endsWith("/supported")
+      ? routes.supported
+      : routes.verify;
     if (route === undefined) throw new Error(`unscripted request to ${url}`);
     return route(init);
   };
@@ -83,24 +105,37 @@ const options = (overrides: Partial<SellerOptions> = {}): SellerOptions => ({
   ...overrides,
 });
 
-const paid = (routes: { verify?: Route; settle?: Route }, overrides: Partial<SellerOptions> = {}) => {
+const paid = (
+  routes: { verify?: Route; settle?: Route },
+  overrides: Partial<SellerOptions> = {}
+) => {
   const facilitator = scripted(routes);
-  const seller = createSeller(options({ ...overrides, fetch: facilitator.fetch }));
+  const seller = createSeller(
+    options({ ...overrides, fetch: facilitator.fetch })
+  );
   return {
     calls: facilitator.calls,
     seller,
-    decide: (paymentSignature: string | null = PAYMENT_HEADER): Promise<SellerDecision> =>
+    decide: (
+      paymentSignature: string | null = PAYMENT_HEADER
+    ): Promise<SellerDecision> =>
       seller.handle({ url: URL_UNDER_TEST, paymentSignature }),
   };
 };
 
-const respond = (decision: SellerDecision): Extract<SellerDecision, { kind: "respond" }> => {
-  if (decision.kind !== "respond") throw new Error(`expected a respond decision, got ${decision.kind}`);
+const respond = (
+  decision: SellerDecision
+): Extract<SellerDecision, { kind: "respond" }> => {
+  if (decision.kind !== "respond")
+    throw new Error(`expected a respond decision, got ${decision.kind}`);
   return decision;
 };
 
-const fulfill = (decision: SellerDecision): Extract<SellerDecision, { kind: "fulfill" }> => {
-  if (decision.kind !== "fulfill") throw new Error(`expected a fulfill decision, got ${decision.kind}`);
+const fulfill = (
+  decision: SellerDecision
+): Extract<SellerDecision, { kind: "fulfill" }> => {
+  if (decision.kind !== "fulfill")
+    throw new Error(`expected a fulfill decision, got ${decision.kind}`);
   return decision;
 };
 
@@ -147,19 +182,28 @@ describe("createSeller fails loudly at startup", () => {
     ["retryAfterSeconds", { retryAfterSeconds: 0 }, "retryAfterSeconds"],
     ["verifyTimeoutMs", { verifyTimeoutMs: -1 }, "verifyTimeoutMs"],
     ["settleTimeoutMs", { settleTimeoutMs: 1.5 }, "settleTimeoutMs"],
-  ])("rejects a %s that is not a positive integer", (_name, overrides, field) => {
-    expect(configError(overrides).message).toContain(field);
-  });
+  ])(
+    "rejects a %s that is not a positive integer",
+    (_name, overrides, field) => {
+      expect(configError(overrides).message).toContain(field);
+    }
+  );
 
   it("refuses sui:mainnet unless the seller opts in", () => {
-    expect(configError({ network: "sui:mainnet" }).message).toContain("allowMainnet");
-    expect(createSeller(options({ network: "sui:mainnet", allowMainnet: true })).requirements.network).toBe(
-      "sui:mainnet",
+    expect(configError({ network: "sui:mainnet" }).message).toContain(
+      "allowMainnet"
     );
+    expect(
+      createSeller(options({ network: "sui:mainnet", allowMainnet: true }))
+        .requirements.network
+    ).toBe("sui:mainnet");
   });
 
   it("accepts maxTimeoutSeconds 0, which the wire schema allows", () => {
-    expect(createSeller(options({ maxTimeoutSeconds: 0 })).requirements.maxTimeoutSeconds).toBe(0);
+    expect(
+      createSeller(options({ maxTimeoutSeconds: 0 })).requirements
+        .maxTimeoutSeconds
+    ).toBe(0);
   });
 
   it("exposes the advertised requirements and defaults to strict mode", () => {
@@ -172,10 +216,18 @@ describe("createSeller fails loudly at startup", () => {
   it("tolerates a trailing slash on the facilitator URL", async () => {
     const facilitator = scripted({ verify: replies({ isValid: false }) });
     const seller = createSeller(
-      options({ facilitator: "https://facilitator.test/api/", fetch: facilitator.fetch }),
+      options({
+        facilitator: "https://facilitator.test/api/",
+        fetch: facilitator.fetch,
+      })
     );
-    await seller.handle({ url: URL_UNDER_TEST, paymentSignature: PAYMENT_HEADER });
-    expect(facilitator.calls[0].url).toBe("https://facilitator.test/api/verify");
+    await seller.handle({
+      url: URL_UNDER_TEST,
+      paymentSignature: PAYMENT_HEADER,
+    });
+    expect(facilitator.calls[0].url).toBe(
+      "https://facilitator.test/api/verify"
+    );
   });
 });
 
@@ -183,21 +235,33 @@ describe("createSeller fails loudly at startup", () => {
 
 describe("paymentRequired", () => {
   it("puts the identical JSON in the header and the body (spec-notes #1)", () => {
-    const seller = createSeller(options({ description: "whale signal", mimeType: "application/json" }));
-    const { header, body } = seller.paymentRequired(URL_UNDER_TEST, "PAYMENT-SIGNATURE header is required");
+    const seller = createSeller(
+      options({ description: "whale signal", mimeType: "application/json" })
+    );
+    const { header, body } = seller.paymentRequired(
+      URL_UNDER_TEST,
+      "PAYMENT-SIGNATURE header is required"
+    );
 
     expect(header).toBe(encodeHeader(body));
     expect(decodeHeader(header, PaymentRequired)).toEqual(body);
     expect(body).toEqual({
       x402Version: 2,
       error: "PAYMENT-SIGNATURE header is required",
-      resource: { url: URL_UNDER_TEST, description: "whale signal", mimeType: "application/json" },
+      resource: {
+        url: URL_UNDER_TEST,
+        description: "whale signal",
+        mimeType: "application/json",
+      },
       accepts: [live],
     });
   });
 
   it("omits description and mimeType when the seller did not configure them", () => {
-    const { body } = createSeller(options()).paymentRequired(URL_UNDER_TEST, "insufficient_funds");
+    const { body } = createSeller(options()).paymentRequired(
+      URL_UNDER_TEST,
+      "insufficient_funds"
+    );
     expect(body.resource).toEqual({ url: URL_UNDER_TEST });
     expect(Object.keys(body.resource)).toEqual(["url"]);
   });
@@ -212,11 +276,17 @@ describe("handle without a usable payment header", () => {
 
     expect(decision.status).toBe(402);
     expect(decision.headers).toEqual({
-      [HEADER_PAYMENT_REQUIRED]: seller.paymentRequired(URL_UNDER_TEST, "PAYMENT-SIGNATURE header is required").header,
+      [HEADER_PAYMENT_REQUIRED]: seller.paymentRequired(
+        URL_UNDER_TEST,
+        "PAYMENT-SIGNATURE header is required"
+      ).header,
       "content-type": "application/json",
     });
     expect(decision.body).toEqual(
-      seller.paymentRequired(URL_UNDER_TEST, "PAYMENT-SIGNATURE header is required").body,
+      seller.paymentRequired(
+        URL_UNDER_TEST,
+        "PAYMENT-SIGNATURE header is required"
+      ).body
     );
     expect(calls).toEqual([]);
   });
@@ -226,21 +296,34 @@ describe("handle without a usable payment header", () => {
     ["non-base64 characters", "not base64!", "not_base64"],
     ["base64 of non-JSON", Buffer.from("hello").toString("base64"), "not_json"],
     ["a JSON array", encodeHeader([PAYMENT_DOCUMENT]), "not_object"],
-    ["a document of the wrong shape", encodeHeader({ hello: "world" }), "schema"],
-  ])("answers 400 for %s without asking the facilitator", async (_name, header, reason) => {
-    const { decide, calls } = paid({});
-    const decision = respond(await decide(header));
+    [
+      "a document of the wrong shape",
+      encodeHeader({ hello: "world" }),
+      "schema",
+    ],
+  ])(
+    "answers 400 for %s without asking the facilitator",
+    async (_name, header, reason) => {
+      const { decide, calls } = paid({});
+      const decision = respond(await decide(header));
 
-    expect(decision.status).toBe(400);
-    expect(decision.headers).toEqual({ "content-type": "application/json" });
-    expect(decision.body).toEqual({ error: "malformed PAYMENT-SIGNATURE", reason });
-    expect(calls).toEqual([]);
-  });
+      expect(decision.status).toBe(400);
+      expect(decision.headers).toEqual({ "content-type": "application/json" });
+      expect(decision.body).toEqual({
+        error: "malformed PAYMENT-SIGNATURE",
+        reason,
+      });
+      expect(calls).toEqual([]);
+    }
+  );
 });
 
 describe("handle relays the payment to the facilitator", () => {
   it("posts the payer's document verbatim, keys this schema version strips included", async () => {
-    const { decide, calls } = paid({ verify: replies({ isValid: true }), settle: replies(SETTLE_OK) });
+    const { decide, calls } = paid({
+      verify: replies({ isValid: true }),
+      settle: replies(SETTLE_OK),
+    });
     await decide();
 
     expect(calls.map((call) => call.url)).toEqual([
@@ -250,27 +333,42 @@ describe("handle relays the payment to the facilitator", () => {
     for (const call of calls) {
       expect(call.body).toEqual(facilitatorRequest(PAYMENT_DOCUMENT));
       expect(call.init?.method).toBe("POST");
-      expect(new Headers(call.init?.headers).get("content-type")).toBe("application/json");
+      expect(new Headers(call.init?.headers).get("content-type")).toBe(
+        "application/json"
+      );
       expect(call.init?.signal).toBeInstanceOf(AbortSignal);
     }
   });
 
   it("answers 402 with the facilitator's reason when the payment is invalid", async () => {
-    const { decide } = paid({ verify: replies({ isValid: false, invalidReason: "insufficient_funds" }) });
+    const { decide } = paid({
+      verify: replies({ isValid: false, invalidReason: "insufficient_funds" }),
+    });
     const decision = respond(await decide());
 
     expect(decision.status).toBe(402);
-    expect(PaymentRequired.parse(decision.body).error).toBe("insufficient_funds");
-    expect(decision.headers[HEADER_PAYMENT_REQUIRED]).toBe(encodeHeader(decision.body));
+    expect(PaymentRequired.parse(decision.body).error).toBe(
+      "insufficient_funds"
+    );
+    expect(decision.headers[HEADER_PAYMENT_REQUIRED]).toBe(
+      encodeHeader(decision.body)
+    );
   });
 
   it("falls back to invalid_payload when the facilitator names no reason", async () => {
     const { decide } = paid({ verify: replies({ isValid: false }) });
-    expect(PaymentRequired.parse(respond(await decide()).body).error).toBe("invalid_payload");
+    expect(PaymentRequired.parse(respond(await decide()).body).error).toBe(
+      "invalid_payload"
+    );
   });
 
   it("treats the facilitator's 400 as its verdict, not as an outage (spec-notes #5)", async () => {
-    const { decide } = paid({ verify: replies({ isValid: false, invalidReason: "invalid_payload" }, 400) });
+    const { decide } = paid({
+      verify: replies(
+        { isValid: false, invalidReason: "invalid_payload" },
+        400
+      ),
+    });
     const decision = respond(await decide());
 
     expect(decision.status).toBe(402);
@@ -283,13 +381,20 @@ describe("handle answers 503 rather than fulfilling unpaid content", () => {
     ["the request never leaves", refuses, "unreachable"],
     ["the facilitator answers 500", sends("boom", 500), "http"],
     ["the body is not JSON", sends("<html>maintenance</html>"), "unparseable"],
-    ["the body is JSON of another shape", replies({ ok: "yes" }), "unparseable"],
+    [
+      "the body is JSON of another shape",
+      replies({ ok: "yes" }),
+      "unparseable",
+    ],
   ])("%s", async (_name, verify, kind) => {
     const { decide } = paid({ verify });
     const decision = respond(await decide());
 
     expect(decision.status).toBe(503);
-    expect(decision.headers).toEqual({ "Retry-After": "5", "content-type": "application/json" });
+    expect(decision.headers).toEqual({
+      "Retry-After": "5",
+      "content-type": "application/json",
+    });
     expect(decision.body).toEqual({ error: "facilitator unavailable", kind });
   });
 
@@ -304,16 +409,25 @@ describe("handle answers 503 rather than fulfilling unpaid content", () => {
     const decision = respond(await decide());
 
     expect(decision.status).toBe(503);
-    expect(decision.body).toEqual({ error: "facilitator unavailable", kind: "timeout" });
+    expect(decision.body).toEqual({
+      error: "facilitator unavailable",
+      kind: "timeout",
+    });
     expect(Date.now() - started).toBeLessThan(2_000);
   });
 
   it("aborts a settle that outlives settleTimeoutMs", async () => {
-    const { decide } = paid({ verify: replies({ isValid: true }), settle: hangs }, { settleTimeoutMs: 30 });
+    const { decide } = paid(
+      { verify: replies({ isValid: true }), settle: hangs },
+      { settleTimeoutMs: 30 }
+    );
     const decision = respond(await decide());
 
     expect(decision.status).toBe(503);
-    expect(decision.body).toEqual({ error: "facilitator unavailable", kind: "timeout" });
+    expect(decision.body).toEqual({
+      error: "facilitator unavailable",
+      kind: "timeout",
+    });
   });
 
   it("defaults verify to 10s and derives settle from maxTimeoutSeconds", async () => {
@@ -324,28 +438,41 @@ describe("handle answers 503 rather than fulfilling unpaid content", () => {
       return original.call(AbortSignal, ms);
     };
     try {
-      const { decide } = paid({ verify: replies({ isValid: true }), settle: replies(SETTLE_OK) });
+      const { decide } = paid({
+        verify: replies({ isValid: true }),
+        settle: replies(SETTLE_OK),
+      });
       await decide();
       const custom = paid(
         { verify: replies({ isValid: true }), settle: replies(SETTLE_OK) },
-        { verifyTimeoutMs: 1_500, settleTimeoutMs: 2_500 },
+        { verifyTimeoutMs: 1_500, settleTimeoutMs: 2_500 }
       );
       await custom.decide();
     } finally {
       AbortSignal.timeout = original;
     }
 
-    expect(seen).toEqual([10_000, live.maxTimeoutSeconds * 1_000 + 10_000, 1_500, 2_500]);
+    expect(seen).toEqual([
+      10_000,
+      live.maxTimeoutSeconds * 1_000 + 10_000,
+      1_500,
+      2_500,
+    ]);
   });
 });
 
 describe("strict mode settles before the handler may run", () => {
   it("fulfills with the settlement in PAYMENT-RESPONSE", async () => {
-    const { decide } = paid({ verify: replies({ isValid: true }), settle: replies(SETTLE_OK) });
+    const { decide } = paid({
+      verify: replies({ isValid: true }),
+      settle: replies(SETTLE_OK),
+    });
     const decision = fulfill(await decide());
 
     expect(decision.settleAfter).toBeNull();
-    expect(decodeHeader(decision.headers[HEADER_PAYMENT_RESPONSE], SettleResponse)).toEqual(SETTLE_OK);
+    expect(
+      decodeHeader(decision.headers[HEADER_PAYMENT_RESPONSE], SettleResponse)
+    ).toEqual(SETTLE_OK);
   });
 
   it("answers 402 with the settle reason when settlement fails", async () => {
@@ -361,7 +488,78 @@ describe("strict mode settles before the handler may run", () => {
     const decision = respond(await decide());
 
     expect(decision.status).toBe(402);
-    expect(PaymentRequired.parse(decision.body).error).toBe("invalid_transaction_state");
+    expect(PaymentRequired.parse(decision.body).error).toBe(
+      "invalid_transaction_state"
+    );
+  });
+
+  it("refuses to fulfil when the settled amount is under what was asked for", async () => {
+    const { decide } = paid({
+      verify: replies({ isValid: true }),
+      settle: replies({
+        ...SETTLE_OK,
+        amount: (BigInt(live.amount) - 1n).toString(),
+      }),
+    });
+    const decision = respond(await decide());
+
+    expect(decision.status).toBe(402);
+    expect(PaymentRequired.parse(decision.body).error).toBe(
+      "unexpected_settle_error"
+    );
+  });
+
+  it("refuses to fulfil when the settlement names a different network", async () => {
+    const { decide } = paid({
+      verify: replies({ isValid: true }),
+      settle: replies({ ...SETTLE_OK, network: "sui:mainnet-other" }),
+    });
+
+    expect(respond(await decide()).status).toBe(402);
+  });
+
+  it("refuses an amount that is not a positive base-10 string, so BigInt cannot widen it", async () => {
+    const { decide } = paid({
+      verify: replies({ isValid: true }),
+      // BigInt("0x...") would read this as a number large enough to pass.
+      settle: replies({
+        ...SETTLE_OK,
+        amount: `0x${BigInt(live.amount).toString(16)}`,
+      }),
+    });
+
+    expect(respond(await decide()).status).toBe(402);
+  });
+
+  it("refuses an empty network on a success, which cannot happen honestly", async () => {
+    const { decide } = paid({
+      verify: replies({ isValid: true }),
+      settle: replies({ ...SETTLE_OK, network: "" }),
+    });
+
+    expect(respond(await decide()).status).toBe(402);
+  });
+
+  it("still fulfils when the settled amount exceeds what was asked for", async () => {
+    const { decide } = paid({
+      verify: replies({ isValid: true }),
+      settle: replies({
+        ...SETTLE_OK,
+        amount: (BigInt(live.amount) + 1n).toString(),
+      }),
+    });
+
+    expect(fulfill(await decide()).settleAfter).toBeNull();
+  });
+
+  it("still fulfils when the facilitator reports no amount, which the schema allows", async () => {
+    const { amount: _omitted, ...noAmount } = SETTLE_OK;
+    const { decide } = paid({
+      verify: replies({ isValid: true }),
+      settle: replies(noAmount),
+    });
+
+    expect(fulfill(await decide()).settleAfter).toBeNull();
   });
 
   it("falls back to unexpected_settle_error when the facilitator names no reason", async () => {
@@ -369,15 +567,23 @@ describe("strict mode settles before the handler may run", () => {
       verify: replies({ isValid: true }),
       settle: replies({ success: false, transaction: "", network: "" }),
     });
-    expect(PaymentRequired.parse(respond(await decide()).body).error).toBe("unexpected_settle_error");
+    expect(PaymentRequired.parse(respond(await decide()).body).error).toBe(
+      "unexpected_settle_error"
+    );
   });
 
   it("answers 503 when settle cannot be reached, so the payer resends the same payload", async () => {
-    const { decide } = paid({ verify: replies({ isValid: true }), settle: refuses });
+    const { decide } = paid({
+      verify: replies({ isValid: true }),
+      settle: refuses,
+    });
     const decision = respond(await decide());
 
     expect(decision.status).toBe(503);
-    expect(decision.body).toEqual({ error: "facilitator unavailable", kind: "unreachable" });
+    expect(decision.body).toEqual({
+      error: "facilitator unavailable",
+      kind: "unreachable",
+    });
   });
 });
 
@@ -385,20 +591,27 @@ describe("fast mode settles after the handler", () => {
   it("fulfills on a valid verify and settles only when settleAfter is called", async () => {
     const { decide, calls } = paid(
       { verify: replies({ isValid: true }), settle: replies(SETTLE_OK) },
-      { mode: "fast" },
+      { mode: "fast" }
     );
     const decision = fulfill(await decide());
 
     expect(decision.headers).toEqual({});
     expect(calls).toHaveLength(1);
     expect(decision.settleAfter).not.toBeNull();
-    const settle = decision.settleAfter === null ? null : await decision.settleAfter();
+    const settle =
+      decision.settleAfter === null ? null : await decision.settleAfter();
     expect(settle).toEqual(SETTLE_OK);
     expect(calls).toHaveLength(2);
     expect(calls[1].body).toEqual(facilitatorRequest(PAYMENT_DOCUMENT));
   });
 
-  it.each<[string, Route, { reason: string; payer: string | null; digest: string | null }]>([
+  it.each<
+    [
+      string,
+      Route,
+      { reason: string; payer: string | null; digest: string | null }
+    ]
+  >([
     [
       "a rejected settlement",
       replies({
@@ -410,22 +623,43 @@ describe("fast mode settles after the handler", () => {
       }),
       { reason: "invalid_transaction_state", payer: PAYER, digest: null },
     ],
-    ["an unreachable facilitator", refuses, { reason: "unreachable", payer: null, digest: null }],
-    ["a facilitator that answers 500", sends("boom", 500), { reason: "http", payer: null, digest: null }],
-  ])("reports %s to onSettleFailure and resolves null", async (_name, settle, expected) => {
-    const failures: { reason: string; payer: string | null; digest: string | null }[] = [];
-    const { decide } = paid(
-      { verify: replies({ isValid: true }), settle },
-      { mode: "fast", onSettleFailure: (failure) => failures.push(failure) },
-    );
-    const decision = fulfill(await decide());
+    [
+      "an unreachable facilitator",
+      refuses,
+      { reason: "unreachable", payer: null, digest: null },
+    ],
+    [
+      "a facilitator that answers 500",
+      sends("boom", 500),
+      { reason: "http", payer: null, digest: null },
+    ],
+  ])(
+    "reports %s to onSettleFailure and resolves null",
+    async (_name, settle, expected) => {
+      const failures: {
+        reason: string;
+        payer: string | null;
+        digest: string | null;
+      }[] = [];
+      const { decide } = paid(
+        { verify: replies({ isValid: true }), settle },
+        { mode: "fast", onSettleFailure: (failure) => failures.push(failure) }
+      );
+      const decision = fulfill(await decide());
 
-    expect(decision.settleAfter === null ? "missing" : await decision.settleAfter()).toBeNull();
-    expect(failures).toEqual([expected]);
-  });
+      expect(
+        decision.settleAfter === null ? "missing" : await decision.settleAfter()
+      ).toBeNull();
+      expect(failures).toEqual([expected]);
+    }
+  );
 
   it("reports the settlement digest when one was broadcast before the failure", async () => {
-    const failures: { reason: string; payer: string | null; digest: string | null }[] = [];
+    const failures: {
+      reason: string;
+      payer: string | null;
+      digest: string | null;
+    }[] = [];
     const { decide } = paid(
       {
         verify: replies({ isValid: true }),
@@ -436,7 +670,7 @@ describe("fast mode settles after the handler", () => {
           network: live.network,
         }),
       },
-      { mode: "fast", onSettleFailure: (failure) => failures.push(failure) },
+      { mode: "fast", onSettleFailure: (failure) => failures.push(failure) }
     );
     const decision = fulfill(await decide());
     if (decision.settleAfter !== null) await decision.settleAfter();
@@ -444,10 +678,43 @@ describe("fast mode settles after the handler", () => {
     expect(failures[0].digest).toBe(SETTLE_OK.transaction);
   });
 
+  it("reports settlement_mismatch and resolves null when a 'successful' settle undershoots the offer", async () => {
+    const failures: { reason: string }[] = [];
+    const settled: unknown[] = [];
+    const { decide } = paid(
+      {
+        verify: replies({ isValid: true }),
+        settle: replies({
+          ...SETTLE_OK,
+          amount: (BigInt(live.amount) - 1n).toString(),
+        }),
+      },
+      {
+        mode: "fast",
+        onSettleFailure: (failure) => failures.push(failure),
+        onSettled: (s) => settled.push(s),
+      }
+    );
+    const decision = fulfill(await decide());
+    const result =
+      decision.settleAfter === null ? "missing" : await decision.settleAfter();
+
+    expect(result).toBeNull();
+    expect(failures.map((f) => f.reason)).toEqual(["settlement_mismatch"]);
+    expect(settled).toEqual([]);
+  });
+
   it("never rejects: neither a missing callback nor a throwing one escapes settleAfter", async () => {
-    const silent = paid({ verify: replies({ isValid: true }), settle: refuses }, { mode: "fast" });
+    const silent = paid(
+      { verify: replies({ isValid: true }), settle: refuses },
+      { mode: "fast" }
+    );
     const silentDecision = fulfill(await silent.decide());
-    expect(silentDecision.settleAfter === null ? "missing" : await silentDecision.settleAfter()).toBeNull();
+    expect(
+      silentDecision.settleAfter === null
+        ? "missing"
+        : await silentDecision.settleAfter()
+    ).toBeNull();
 
     const noisy = paid(
       { verify: replies({ isValid: true }), settle: refuses },
@@ -456,10 +723,14 @@ describe("fast mode settles after the handler", () => {
         onSettleFailure: () => {
           throw new Error("the seller's logger is broken");
         },
-      },
+      }
     );
     const noisyDecision = fulfill(await noisy.decide());
-    expect(noisyDecision.settleAfter === null ? "missing" : await noisyDecision.settleAfter()).toBeNull();
+    expect(
+      noisyDecision.settleAfter === null
+        ? "missing"
+        : await noisyDecision.settleAfter()
+    ).toBeNull();
   });
 });
 
@@ -468,42 +739,70 @@ describe("fast mode settles after the handler", () => {
 describe("assertFacilitatorSupports", () => {
   it("accepts a facilitator advertising the configured network", async () => {
     const facilitator = scripted({ supported: replies(supported) });
-    await expect(createSeller(options({ fetch: facilitator.fetch })).assertFacilitatorSupports()).resolves.toBeUndefined();
+    await expect(
+      createSeller(
+        options({ fetch: facilitator.fetch })
+      ).assertFacilitatorSupports()
+    ).resolves.toBeUndefined();
     expect(facilitator.calls[0].url).toBe("https://facilitator.test/supported");
     expect(facilitator.calls[0].init?.method).toBe("GET");
   });
 
   it("rejects a facilitator that does not serve the configured network", async () => {
-    const withoutTestnet = { ...supported, kinds: supported.kinds.filter((kind) => kind.network !== "sui:testnet") };
+    const withoutTestnet = {
+      ...supported,
+      kinds: supported.kinds.filter((kind) => kind.network !== "sui:testnet"),
+    };
     const facilitator = scripted({ supported: replies(withoutTestnet) });
     const seller = createSeller(options({ fetch: facilitator.fetch }));
 
-    await expect(seller.assertFacilitatorSupports()).rejects.toBeInstanceOf(SellerConfigError);
-    await expect(seller.assertFacilitatorSupports()).rejects.toThrow("sui:testnet");
+    await expect(seller.assertFacilitatorSupports()).rejects.toBeInstanceOf(
+      SellerConfigError
+    );
+    await expect(seller.assertFacilitatorSupports()).rejects.toThrow(
+      "sui:testnet"
+    );
   });
 
   it("rejects a facilitator that serves the network under another scheme", async () => {
-    const upto = { ...supported, kinds: supported.kinds.map((kind) => ({ ...kind, scheme: "upto" })) };
-    const seller = createSeller(options({ fetch: scripted({ supported: replies(upto) }).fetch }));
-    await expect(seller.assertFacilitatorSupports()).rejects.toBeInstanceOf(SellerConfigError);
+    const upto = {
+      ...supported,
+      kinds: supported.kinds.map((kind) => ({ ...kind, scheme: "upto" })),
+    };
+    const seller = createSeller(
+      options({ fetch: scripted({ supported: replies(upto) }).fetch })
+    );
+    await expect(seller.assertFacilitatorSupports()).rejects.toBeInstanceOf(
+      SellerConfigError
+    );
   });
 
   it.each<[string, Route, string, number | null]>([
     ["is unreachable", refuses, "unreachable", null],
     ["answers 500", sends("boom", 500), "http", 500],
-    ["answers something other than /supported", sends("<html>", 200), "unparseable", null],
-  ])("raises a FacilitatorError when the facilitator %s", async (_name, route, kind, status) => {
-    const seller = createSeller(options({ fetch: scripted({ supported: route }).fetch }));
-    try {
-      await seller.assertFacilitatorSupports();
-      throw new Error("assertFacilitatorSupports resolved");
-    } catch (e) {
-      expect(e).toBeInstanceOf(FacilitatorError);
-      if (!(e instanceof FacilitatorError)) throw e;
-      expect(e.kind).toBe(kind);
-      expect(e.status).toBe(status);
+    [
+      "answers something other than /supported",
+      sends("<html>", 200),
+      "unparseable",
+      null,
+    ],
+  ])(
+    "raises a FacilitatorError when the facilitator %s",
+    async (_name, route, kind, status) => {
+      const seller = createSeller(
+        options({ fetch: scripted({ supported: route }).fetch })
+      );
+      try {
+        await seller.assertFacilitatorSupports();
+        throw new Error("assertFacilitatorSupports resolved");
+      } catch (e) {
+        expect(e).toBeInstanceOf(FacilitatorError);
+        if (!(e instanceof FacilitatorError)) throw e;
+        expect(e.kind).toBe(kind);
+        expect(e.status).toBe(status);
+      }
     }
-  });
+  );
 });
 
 // --- the shared suite, against the seller core itself -----------------------
@@ -521,7 +820,10 @@ const referenceTarget: ConformanceTarget = {
           paymentSignature: headers.get(HEADER_PAYMENT_SIGNATURE),
         });
         if (decision.kind === "respond") {
-          return new Response(JSON.stringify(decision.body), { status: decision.status, headers: decision.headers });
+          return new Response(JSON.stringify(decision.body), {
+            status: decision.status,
+            headers: decision.headers,
+          });
         }
         handled += 1;
         const body = handler();

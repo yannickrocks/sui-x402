@@ -110,6 +110,22 @@ two independent sources and passes it via `chainIdentifiers`
 maintainer-verified repo-wide pin — remains open if integrator demand
 justifies taking on that obligation.
 
+**D16 · A mainnet failover RPC needs a header-injecting proxy, or your own
+node.** The facilitator builds its client from a base URL alone and speaks
+gRPC-Web rather than native gRPC, and those two facts together disqualify most
+Sui endpoints: free public ones tend to reject gRPC-Web outright, and the
+commercial ones authenticate with a header the facilitator has no way to send.
+Since the facilitator is vendored unmodified, that leaves a self-hosted
+fullnode (gRPC-Web, no auth) or a keyed provider behind a proxy supplying the
+header — gRPC-Web is ordinary HTTP POST, so a stock reverse proxy carries it
+intact, which is what `deploy/rpc-proxy/` does; its README records the
+per-provider measurements. The cost is a second hop and a second thing to
+trust, bounded by this being the _failover_ endpoint, and
+`deploy/verify-rpc-endpoints.mjs` exists because a broken failover is
+otherwise invisible until the primary fails. The cleaner fix — per-endpoint
+headers upstream — has been raised with the facilitator and would retire the
+proxy.
+
 The money path (`packages/payer-sui`) went through two structured internal
 reviews (correctness, security, protocol conformance) and the seller side
 through one. Seventeen findings were raised; every one was fixed or are listed as known limitations in

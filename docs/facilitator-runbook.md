@@ -217,7 +217,8 @@ Check every box before setting `ENABLE_MAINNET=1`.
    and `PROOF.md`; confirm the pinned commit is the one those documents
    describe.
 3. **Mainnet asset confirmed** against two independent sources, including
-   on-chain coin metadata showing `decimals` 6.
+   on-chain coin metadata showing `decimals` 6. To re-run the on-chain half:
+   `node packages/payer-sui/coin-metadata.mjs <coinType> <baseUrl> <baseUrl>`.
 
    > **Confirmation record** (confirmed 2026-09-01, issue #6):
    >
@@ -248,6 +249,23 @@ Check every box before setting `ENABLE_MAINNET=1`.
    falsely validate a payment. Confirm in the deployment platform's own
    secret list — not just a local `.env` — that the var is set, non-empty,
    and holds two comma-separated entries.
+
+   Protocol constrains the choice as much as trust does: most Sui gRPC
+   endpoints cannot be used here at all, and the two that can are a
+   self-hosted fullnode or a keyed provider behind the proxy in
+   `deploy/rpc-proxy/`. See [D16](decisions.md) for why, and that
+   directory's README for the measurements.
+
+   Verify rather than assume — the facilitator logs a failover only when
+   one happens, so a broken second endpoint stays invisible until the
+   primary dies:
+
+   ```sh
+   node deploy/verify-rpc-endpoints.mjs mainnet "$SUI_MAINNET_RPC"
+   ```
+
+   Every endpoint must report PASS.
+
 5. **Separate service.** Mainnet runs as its own deployment: its own URL,
    its own secrets, its own logs.
 6. **Rate limit and RPC timeout reviewed** for mainnet traffic — sized for
@@ -260,6 +278,16 @@ Check every box before setting `ENABLE_MAINNET=1`.
    stays off for v1.
 8. **Health check and alerting live** on the mainnet service before it
    takes traffic, including an alert on settle failures.
+
+   Railway cannot do the settle-failure half natively — it has no
+   log-content alerting, no log drain and no sidecars — so the match has to
+   happen in-container. `deploy/facilitator/alerting/` holds two ready
+   options and the exact lines to alert on; follow its README.
+
+   An untested alert path is not an alert path: emit one synthetic
+   matching line on the deployed service and confirm the alert arrives
+   before this box is checked.
+
 9. **Rollback rehearsed.** Unset `ENABLE_MAINNET`, redeploy, and confirm
    `/supported` returns to testnet-only. Then confirm a `sui:mainnet` `POST
 /settle` fails cleanly rather than hanging: HTTP **200** with
