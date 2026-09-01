@@ -1,0 +1,71 @@
+# Vector runs INSIDE the app container, fed by the app's stdout over a pipe.
+# Railway has no log drain and no sidecar containers, so a separate Vector
+# service cannot see this service's stdout. See the brief for why.
+#
+# Required env vars on the Railway service:
+#   BETTERSTACK_INGESTING_HOST  e.g. s1315908.eu-nbg-2.betterstackdata.com  (per-source, read off the source page)
+#   BETTERSTACK_SOURCE_TOKEN    the source token (secret)
+
+data_dir = "/var/lib/vector"
+
+[api]
+enabled = false
+
+# ---------------------------------------------------------------- source
+[sources.app]
+type = "stdin"
+decoding.codec = "bytes"          # one event per line, payload in .message
+
+# ------------------------------------------------- keep Railway complete
+# EVERY line goes back out on Vector's stdout, so Railway's log explorer
+# still captures 100% of the service's output. inputs MUST be the raw
+# source, never the filter.
+[sinks.railway_stdout]
+type = "console"
+inputs = ["app"]
+target = "stdout"
+encoding.codec = "text"           # prints .message verbatim
+
+# ------------------------------------------------------------- transform
+# These three strings are also matched in settle-alert.sh (Option A) and
+# tabulated in README.md. Change one, change all three.
+[transforms.settle_failures]
+type = "filter"
+inputs = ["app"]
+condition.type = "vrl"
+condition.source = '''
+msg = string!(.message)
+contains(msg, "settle error:") ||
+contains(msg, "executed but payTo received") ||
+contains(msg, "settle failed on-chain")
+'''
+
+[transforms.betterstack_shape]
+type = "remap"
+inputs = ["settle_failures"]
+source = '''
+.dt = del(.timestamp)             # mandatory: Better Stack event time
+.service     = "sui-x402-facilitator"
+.alert       = "settle_failure"
+.environment = get_env_var("RAILWAY_ENVIRONMENT_NAME") ?? "unknown"
+.deployment  = get_env_var("RAILWAY_DEPLOYMENT_ID") ?? "unknown"
+.replica     = get_env_var("RAILWAY_REPLICA_ID") ?? "unknown"
+'''
+
+# ------------------------------------------------------------------ sink
+[sinks.betterstack]
+type = "http"
+inputs = ["betterstack_shape"]
+method = "post"
+uri = "https://${BETTERSTACK_INGESTING_HOST}/"
+encoding.codec = "json"
+framing.method = "newline_delimited"
+compression = "gzip"
+auth.strategy = "bearer"
+auth.token = "${BETTERSTACK_SOURCE_TOKEN}"
+batch.max_events = 50
+batch.timeout_secs = 2
+request.retry_attempts = 5
+buffer.type = "memory"
+buffer.max_events = 5000
+buffer.when_full = "drop_newest"

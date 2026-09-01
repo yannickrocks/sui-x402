@@ -1,0 +1,44 @@
+# Header-injecting gRPC-Web proxy for a keyed Sui RPC provider.
+#
+# The facilitator builds its client as `new SuiGrpcClient({ network, baseUrl })`
+# — a base URL and nothing else — so it cannot send the `x-token` header every
+# commercial Sui gRPC provider requires. gRPC-Web is ordinary HTTP POST
+# (trailers ride in the body), so this proxy adds the header on the way through
+# and the facilitator stays unmodified.
+#
+# Required env on this service:
+#   RPC_UPSTREAM_HOST    e.g. sui-mainnet.core.chainstack.com
+#   RPC_PROVIDER_TOKEN   the provider API key            (platform secret)
+#   PORT                 injected by Railway
+#
+# Every provider measured (Ankr, Chainstack, BlockPi, ZAN, QuickNode) uses the
+# `x-token` header, so it is hardcoded below rather than templated: env
+# substitution happens as a pre-parse text pass, so the fewer substituted
+# tokens on a line, the smaller the chance a malformed value turns into a
+# parse error that echoes this file — including the key — into the startup log.
+# A provider needing a different header name: edit the header_up line.
+{
+	admin off
+	# Terminating TLS is the platform's job; internally this speaks plain HTTP
+	# over private networking, so the token never crosses the public internet.
+	auto_https off
+}
+
+:{$PORT:8080} {
+	# Answered locally so the platform health check never bills the provider
+	# and never depends on the provider being up.
+	handle /healthz {
+		respond "ok" 200
+	}
+
+	handle {
+		reverse_proxy {$RPC_UPSTREAM_HOST}:443 {
+			transport http {
+				tls
+				tls_server_name {$RPC_UPSTREAM_HOST}
+			}
+			header_up Host {$RPC_UPSTREAM_HOST}
+			header_up x-token {$RPC_PROVIDER_TOKEN}
+		}
+	}
+}
