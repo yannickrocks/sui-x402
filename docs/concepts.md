@@ -108,10 +108,15 @@ checks the digest is not already on chain, broadcasts, and waits for finality.
 | `503` + `Retry-After` | The facilitator is unreachable, slow, answered 5xx, or answered something unparseable | `{ "error": "facilitator unavailable", "kind": "unreachable" \| "timeout" \| "http" \| "unparseable" }` |
 | `200` (your handler) | Settled | Your response + `PAYMENT-RESPONSE` |
 
-The reason codes are the facilitator's (`invalid_payment_requirements`,
+Most reason codes are the facilitator's (`invalid_payment_requirements`,
 `invalid_transaction_state`, `insufficient_funds`, `unexpected_settle_error`,
 …). `@sui-x402/core` exports them as `ReasonCode` and maps each to a
 `retryHint`: `refetch_terms`, `rebuild_tx`, `facilitator`, or `none`.
+
+One reason comes from the seller rather than the facilitator:
+`settlement_mismatch`, reported to `onSettleFailure` when a settlement the
+facilitator called successful does not match the offer the seller made (see
+below).
 
 ## Strict vs fast
 
@@ -120,11 +125,19 @@ The reason codes are the facilitator's (`invalid_payment_requirements`,
 | Order | verify → settle → handler | verify → handler → settle |
 | Payer waits for | finality | the dry-run only |
 | Settlement failure | content withheld, `402` | content already served; reported to `onSettleFailure` |
+| Settlement that does not match the offer | content withheld, `402` | content already served; `onSettleFailure` with `settlement_mismatch` |
 | `PAYMENT-RESPONSE` | yes | no — the outcome reaches `onSettled` / `onSettleFailure` only |
 | Risk | none beyond the chain's | the payer's coins can be spent elsewhere between verify and settle |
 
 Use strict for anything you would not give away. On serverless hosts that
 freeze a function after the response, fast mode may never settle — use strict.
+
+A settlement is only accepted when it matches the offer: the settled network
+must equal the offer's, and any amount the facilitator reports must be at
+least the amount asked for. A `success: true` that fails either check is
+treated exactly like a failure. Note the settle response carries no `payTo`,
+so this cannot confirm *who* was paid — that binding is the facilitator's
+responsibility.
 
 
 ```mermaid

@@ -128,6 +128,7 @@ async function paywall(
 | Unreadable `PAYMENT-SIGNATURE`                   | 400 `{ error, reason }`; the facilitator is never called                                           |
 | Facilitator says the payment is invalid          | 402 whose `error` carries the facilitator's reason code, which the payer reads through `retryHint` |
 | Facilitator unreachable, slow, 5xx or unreadable | 503 + `Retry-After`; content is never served unpaid                                                |
+| Facilitator settles successfully but the result does not match the offer | 402 in `strict`; in `fast` the content is already out, so `onSettleFailure` fires with `settlement_mismatch` |
 | `strict` (default)                               | `/settle` runs before the handler; the settlement rides back in `PAYMENT-RESPONSE`                 |
 | `fast`                                           | Handler first, `settleAfter()` after; the outcome goes to `onSettled` / `onSettleFailure`          |
 
@@ -146,7 +147,7 @@ the identical payload and the facilitator dedupes it by transaction digest.
 | `encodeHeader(obj)` / `decodeHeader(str, schema)`                                                                                                    | Compact JSON ⇄ base64. `decodeHeader` throws `HeaderError` with `reason` ∈ `empty \| too_large \| not_base64 \| not_json \| not_object \| schema`                                                                                                                            |
 | `decodeHeaderVerbatim(str, schema)`                                                                                                                  | As `decodeHeader`, but returns `{ raw, value }`. Relay `raw` — zod strips unknown keys, and the facilitator judges the bytes the payer signed                                                                                                                                |
 | `createSeller(options)` → `Seller`                                                                                                                   | Framework-agnostic seller: `requirements`, `mode`, `paymentRequired(url, error)`, `handle(request)`, `assertFacilitatorSupports()`                                                                                                                                           |
-| `SellerOptions`, `SellerRequest`, `SellerDecision`, `Seller`, `SettleFailure`                                                                        | The types an adapter translates its framework to and from                                                                                                                                                                                                                    |
+| `SellerOptions`, `SellerRequest`, `SellerDecision`, `Seller`, `SettleFailure`                                                                        | The types an adapter translates its framework to and from. `SettleFailure.reason` is a facilitator reason code, a `FacilitatorError` kind, or `settlement_mismatch` — the seller's own, when a settlement the facilitator called successful does not match the offer          |
 | `SellerConfigError`, `FacilitatorError`                                                                                                              | A configuration defect that must fail at startup, versus no verdict from the facilitator (`kind` ∈ `unreachable \| timeout \| http \| unparseable`, plus `status`)                                                                                                           |
 | `MAX_TRANSACTION_BASE64_CHARS` (120 000), `MAX_HEADER_CHARS` (256 KiB)                                                                               | Size caps mirrored from the reference facilitator                                                                                                                                                                                                                            |
 | `ReasonCode`, `isReasonCode`, `retryHint`                                                                                                            | Spec §9 codes + Sui analogues; `retryHint` maps a code to `refetch_terms \| rebuild_tx \| facilitator \| none`                                                                                                                                                               |
@@ -154,6 +155,12 @@ the identical payload and the facilitator dedupes it by transaction digest.
 
 ## Notes
 
+- A settlement is accepted only when it matches the offer: the settled
+  `network` must equal the offer's, and any `amount` reported must be at least
+  the offer's (validated as a positive base-10 string, so `"0x10"` is rejected
+  rather than widened). This checks the facilitator's claim against what the
+  seller asked for — it cannot check *who* was paid, because `SettleResponse`
+  carries no `payTo`.
 - `PaymentRequirements.payTo` and `.asset` are validated structurally only.
   Compare them with `normalizeSuiAddress` / `normalizeStructTag` from
   `@mysten/sui/utils`, never with `===` — that is what the facilitator does.

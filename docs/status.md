@@ -1,16 +1,16 @@
 # Status
 
-Last updated 2026-08-23.
+Last updated 2026-09-01.
 
 ## Where things stand
 
 | Area                                                     | State                                                                                                                                                                                                                                         |
 | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@sui-x402/core`, `payer-sui`, `hono`, `express`, `next` | Complete for testnet. 381 unit and conformance tests. Published to npm as v0.1.0; the gasless payer path is staged for v0.2.0.                                                                                                                |
+| `@sui-x402/core`, `payer-sui`, `hono`, `express`, `next` | Complete for testnet. 388 unit and conformance tests. Published to npm as v0.1.0; the gasless payer path and the seller-side settle validation are staged for the next release.                                                                                                                |
 | Live settlement                                          | Proven. The live loop settles a real $0.01 testnet payment on every push to master through this project's Railway facilitator; more than a dozen settlements on chain as of 2026-08-27, each verified.                                        |
 | Gasless (sponsored) payments                             | Payer side shipped: kind build, gas-station client, sponsor-response validation, `gasless` payer modes ([guide](guides/gasless.md)). End-to-end settlement waits on an upstream facilitator settle branch and an Enoki key on the deployment. |
 | CI                                                       | Typecheck and unit tests on every push; the live loop runs on pushes to `master` when `PAYER_SECRET_KEY` is configured.                                                                                                                       |
-| Mainnet                                                  | Gated. Sellers need `allowMainnet: true`; payers need the mainnet genesis digest in `chainIdentifiers` (see below).                                                                                                                           |
+| Mainnet                                                  | Gated, and on hold. Sellers need `allowMainnet: true`; payers need the mainnet genesis digest in `chainIdentifiers` (see below). Beyond those opt-ins, a mainnet facilitator deployment is blocked on unfixed defects in the reference facilitator — see "Known upstream issues".                                                                                                                           |
 | Facilitator hosting                                      | Deployed to Railway from `deploy/facilitator/`: `https://facilitator-production-1e79.up.railway.app` (testnet).                                                                                                                               |
 
 Digests of the first three settlements:
@@ -26,8 +26,7 @@ The `E2E=1` tests pay real testnet USDC. They need:
   (https://faucet.sui.io) and testnet USDC (https://faucet.circle.com, network
   "Sui Testnet"). Keep it in `packages/payer-sui/.env` (gitignored); never commit it.
 - `PAY_TO`: any Sui address other than the payer's, for the example sellers.
-- A facilitator. The public demo seller is currently broken (spec-notes #12),
-  so run the pinned facilitator locally, point `FACILITATOR_URL` at this
+- A facilitator. Run the pinned one locally, point `FACILITATOR_URL` at this
   project's instance (`https://facilitator-production-1e79.up.railway.app`), or use your own:
 
 ```sh
@@ -97,11 +96,27 @@ separate service, trusted-only RPC endpoints, canary rollout — lives in the
 - Fast mode: every live run was strict.
 - Wallets with many small SUI coins: every live payment came from one coin.
 
-## Known upstream issue
+## Known upstream issues
 
-The reference facilitator's public demo seller answers `500` to valid payments
-because it still calls Sui JSON-RPC, which was retired. Its `/verify` and
-`/settle` endpoints work. Details in [spec-notes #12](spec-notes.md).
+A pre-mainnet security review of the pinned facilitator commit found ten
+confirmed defects, two of them critical, reported as
+[sui-x402-facilitator#3](https://github.com/DrVelvetFog/sui-x402-facilitator/issues/3).
+The one that matters most for correctness: its settle idempotency cache is
+keyed on the transaction digest alone and returns a hit *before* the checks
+that bind a settlement to the caller's payment requirements, so one merchant
+can be handed another merchant's success. Sellers here validate the settlement
+against their own offer as partial cover ([concepts](concepts.md)), but the
+response carries no `payTo`, so that case cannot be caught seller-side.
+
+**A mainnet facilitator deployment is on hold until those are fixed** and the
+new pin is reviewed. Everything else for it is ready: the endpoint pair, the
+alerting, and the offline enable and rollback rehearsals.
+
+Separately, sponsored settlement needs an upstream settle branch, requested as
+[sui-x402-facilitator#4](https://github.com/DrVelvetFog/sui-x402-facilitator/issues/4).
+
+The earlier demo-seller breakage (spec-notes #12) was fixed upstream on
+2026-08-24.
 
 ## Next
 
@@ -110,3 +125,6 @@ because it still calls Sui JSON-RPC, which was retired. Its `/verify` and
 3. ~~Make the repository public and publish with Changesets~~ Done: public
    repo, v0.1.0 on npm (2026-08-24).
 4. Ecosystem listing and the testnet network-id spec proposal.
+5. Mainnet facilitator deployment — prepared and blocked on the upstream fixes
+   above; tracked in
+   [sui-x402#7](https://github.com/yannickrocks/sui-x402/issues/7).

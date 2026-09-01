@@ -92,3 +92,14 @@ Live = `https://sui-facilitator.onrender.com`; pinned = submodule commit in
     deployment was observed doing exactly that. The SDK follows the code and
     live behavior: its probe and error mapping treat 503 as
     `not_configured`, tolerating 404 for deployments matching the README.
+
+15. **The pinned facilitator's gRPC client speaks gRPC-Web, which narrows the
+    usable endpoints (2026-09-01).** `SuiGrpcClient` uses
+    `GrpcWebFetchTransport`, and the facilitator constructs it with a base URL
+    and no headers. Measured against the pinned `@mysten/sui@2.17.0`: Mysten's
+    fullnodes serve gRPC-Web; `sui-grpc.publicnode.com` answers
+    `HTTP 415 / application/grpc`, so it is unusable regardless of trust; and
+    the commercial providers document `x-token` header auth, which the
+    facilitator cannot send. Chainstack also accepts its key as a URL path
+    segment, which is what makes a keyed failover endpoint possible without
+    modifying the facilitator. Recorded as [D16](decisions.md).

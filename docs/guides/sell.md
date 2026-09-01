@@ -41,8 +41,8 @@ await seller.assertFacilitatorSupports();         // at boot: fails loudly if th
 | `verifyTimeoutMs` | `10000` | Timeout for `/verify` and `/supported`. |
 | `settleTimeoutMs` | `maxTimeoutSeconds × 1000 + 10000` | Timeout for `/settle`. |
 | `allowMainnet` | `false` | Explicit opt-in for `sui:mainnet`. |
-| `onSettled` | — | Called with the `SettleResponse` after a successful settlement (both modes). |
-| `onSettleFailure` | — | Called with `{ reason, payer, digest }` when settlement fails (both modes). |
+| `onSettled` | — | Called with the `SettleResponse` after a settlement that succeeded *and* matched the offer (both modes). |
+| `onSettleFailure` | — | Called with `{ reason, payer, digest }` when settlement fails, or when it succeeds but does not match the offer — `reason` is then `settlement_mismatch` (both modes). |
 | `fetch` | `globalThis.fetch` | Injected in tests. |
 
 Misconfiguration throws `SellerConfigError` naming the field, at startup, not
@@ -114,7 +114,8 @@ flowchart TD
   M -- strict --> St["POST /settle"]
   St -- "outage" --> P503
   St -- "success: false" --> P402r
-  St -- "success: true" --> OK["handler → 200 + PAYMENT-RESPONSE"]
+  St -- "success: true, matches offer" --> OK["handler → 200 + PAYMENT-RESPONSE"]
+  St -- "success: true, wrong network/amount" --> P402r
   M -- fast --> FK["handler → 200"] --> BG["settle in background<br/>onSettled / onSettleFailure"]
 ```
 

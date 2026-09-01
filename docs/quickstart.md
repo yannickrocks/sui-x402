@@ -64,7 +64,9 @@ The wallet behind `PAYER_SECRET_KEY` needs testnet SUI for gas
 - Payer: at most one extra payment per call, only after proving on chain the
   first never executed; caps per asset via `select.maxAmount`; the client's
   chain must match the offer's network.
-- Both sides relay bytes verbatim; the facilitator is the only verifier.
+- Both sides relay bytes verbatim; the facilitator is the only party that
+  verifies a payment, though the seller does check that the settlement it gets
+  back matches the offer it made.
 
 ## Next
 

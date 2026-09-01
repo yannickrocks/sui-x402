@@ -115,6 +115,14 @@ idempotent per digest, including after a restart. These are the parts where a
 bug loses money, which is why this repo vendors the reference implementation
 at a pinned commit instead of rewriting it, and ships only its deployment.
 
+Reusing it is not the same as assuming it is correct. A review of the pinned
+commit before any mainnet deployment found ten confirmed defects, two
+critical, reported as
+[sui-x402-facilitator#3](https://github.com/DrVelvetFog/sui-x402-facilitator/issues/3)
+and unfixed at the time of writing. They are the reason a mainnet facilitator
+deployment is on hold. On testnet the exposure is play money; anyone pointing
+this at real funds should read that issue first.
+
 ## Residual risks
 
 - **Replica skew.** The two gas-coin reads that gate a second payment could both
@@ -127,6 +135,19 @@ at a pinned commit instead of rewriting it, and ships only its deployment.
   `maxTimeoutSeconds`; the network does not support timestamp expiry yet.
 - **Unexercised paths.** Rebuilds, fast mode and fragmented wallets are covered
   by unit tests against mocked gRPC, not by live runs.
+- **Settlement is attributed by the facilitator, not proved to the seller.**
+  The seller checks the settlement it gets back against its own offer — the
+  network must match and the amount must be at least what was asked — but
+  `SettleResponse` carries no `payTo`, so a facilitator that credited a
+  different payee for the same transaction bytes cannot be caught from here.
+  Upstream issue #3 finding A is exactly that case. The seller-side check is
+  defence in depth, not a substitute for the facilitator binding a settlement
+  to the requirements it was given.
+- **A trusted RPC endpoint is part of the trust base.** Verification believes
+  whatever a node answers — dry-run results, balance changes, digest lookups —
+  so a hostile or wrong endpoint can validate a payment that should fail. Use
+  endpoints you control or independently trust, and verify them
+  ([D16](decisions.md), `deploy/verify-rpc-endpoints.mjs`).
 
 Reporting: open an issue on the repository. Do not include signed payloads or
 keys in reports.

@@ -48,8 +48,11 @@ A TypeScript SDK suite that closes that gap without rebuilding what already work
 
 **Do not build a facilitator.** Verify, settle, replay protection, idempotent
 settlement, gRPC failover — these are the parts of a payment system where bugs
-cost money, and the reference implementation already handles them and is live
-on mainnet. Rebuilding them is weeks of risk for zero differentiation. The
+cost money. The reference implementation handles them and is live on mainnet,
+and rebuilding it is weeks of risk for zero differentiation — reuse is still
+the right call, but reuse is not the same as trust: a pre-mainnet review of
+the pinned commit found defects that are reported and unfixed
+([status](status.md#known-upstream-issues)). The
 product is the developer experience on top.
 
 **Non-custodial all the way down.** The payer signs a complete transaction.

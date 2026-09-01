@@ -33,6 +33,11 @@ Sellers opt in with `allowMainnet: true`. Payers must list `"sui:mainnet"` in
 `select.networks` and pass its genesis digest in `chainIdentifiers`. Both are
 deliberate steps; nothing defaults to mainnet.
 
+Running a mainnet *facilitator* is a separate matter, and currently on hold: a
+pre-mainnet review of the pinned reference facilitator found defects that are
+reported upstream and unfixed
+([status](status.md#known-upstream-issues)).
+
 **Why gRPC?**
 Sui retired public JSON-RPC in July 2026. Every chain call here goes through
 `SuiGrpcClient`, including the facilitator's.
@@ -52,9 +57,13 @@ the x402 v2 wire format as the x402 Foundation specifies it, uses the
 facilitator architecture the foundation's own implementations use, settles
 before serving by default, and certifies Hono, Express and Next.js adapters
 with one conformance suite. It works with any compliant facilitator or payer.
-t2000 supports gasless payments today; sui-x402 does not yet.
+t2000 supports gasless payments end to end. sui-x402 ships the payer half —
+building and signing sponsored payments through the gas station
+([guide](guides/gasless.md)) — but settling one needs an upstream facilitator
+change that is requested and not merged.
 
-**Why is the public demo failing?**
-Its seller layer still calls JSON-RPC and answers `500` to valid payments
-(`docs/spec-notes.md` #12). The facilitator itself is fine; run it locally or
-self-host.
+**Is the public demo working?**
+Yes. Its seller layer briefly answered `500` to valid payments because it
+still called the retired Sui JSON-RPC; that was fixed upstream on 2026-08-24
+(`docs/spec-notes.md` #12). You can still run the facilitator locally or
+self-host it.

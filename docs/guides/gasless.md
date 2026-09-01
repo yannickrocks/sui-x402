@@ -7,7 +7,8 @@ USDC leaves the payer's coin if anything broadcasts the transaction, and no
 party in this stack can reverse it. Keep `gasless` at its default (`"never"`)
 unless you control, or explicitly trust, the deployment at both ends.
 
-> Status: the payer side ships in v0.2.0 and is inert by default. Settling a
+> Status: the payer side is implemented, staged for the next release, and
+> inert by default. Settling a
 > sponsored payment additionally needs a small upstream facilitator change
 > that is not merged yet, so end-to-end sponsored settlement is not live.
 > Everything below works up to (and including) signing; see the status page.

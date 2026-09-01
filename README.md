@@ -10,7 +10,10 @@ ever holds your funds or keys.
 > Status: **testnet, v0.1.0 on npm.** The live payment loop runs on
 > every push to master; more than a dozen settlements on chain as of
 > 2026-08-27 (see [Proof](#proof)). The gasless (sponsored) payer path is
-> implemented and staged for v0.2.0. Mainnet is gated behind explicit opt-ins.
+> implemented and staged for the next release. Mainnet is gated behind
+> explicit opt-ins, and a mainnet facilitator deployment is additionally on
+> hold pending upstream security fixes — see
+> [status](docs/status.md#known-upstream-issues).
 
 ## The problem
 
@@ -92,8 +95,8 @@ Full walkthrough: [docs/quickstart.md](docs/quickstart.md).
   the facilitator dry-runs them and broadcasts them. No party can redirect or
   inflate a payment, and no party holds anyone's key.
 - **The facilitator is reused, not rebuilt.** Replay protection, idempotent
-  settlement and gRPC failover are the risky parts of a payment engine. The
-  reference implementation already solves them; this repo vendors it as a
+  settlement and gRPC failover are the risky parts of a payment engine. Rather
+  than reimplement them, this repo vendors the reference implementation as a
   pinned submodule and ships the deployment config. Weeks of money-path risk
   avoided, and contributions go upstream.
 - **Settle before you serve.** Strict mode (the default) runs your handler only
@@ -164,7 +167,7 @@ More settle continuously: every push to master runs the live loop in CI
 through this project's Railway-hosted facilitator — more than a dozen on
 chain as of 2026-08-27, among them
 ([`7QSxe8Zu…`](https://testnet.suivision.xyz/txblock/7QSxe8Zuu4FkWMPLLEy6uczUwBZH62A2xMC9Res3S1k1)).
-The unit and conformance suites add 381 tests; the money path went through two
+The unit and conformance suites add 388 tests; the money path went through two
 internal adversarial review rounds (recorded in [docs/decisions.md](docs/decisions.md)).
 
 ## Documentation
@@ -178,7 +181,7 @@ internal adversarial review rounds (recorded in [docs/decisions.md](docs/decisio
 | [Guide: pay](docs/guides/pay.md) | Build a paying agent with `@sui-x402/payer-sui` |
 | [Guide: gasless](docs/guides/gasless.md) | Sponsored payments: pay with zero SUI through the facilitator's gas station |
 | [Security model](docs/security-model.md) | Trust boundaries, double-pay defenses, residual risks |
-| [Decisions](docs/decisions.md) | The design record, D1–D13, and what the reviews found |
+| [Decisions](docs/decisions.md) | The design record, D1–D16, and what the reviews found |
 | [Status](docs/status.md) | What is proven, what is pending, how to run the live tests |
 | [Facilitator runbook](docs/facilitator-runbook.md) | Self-host the reference facilitator |
 | [FAQ](docs/faq.md) | Short answers |
