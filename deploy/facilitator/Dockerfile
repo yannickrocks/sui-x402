@@ -9,7 +9,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 ARG UPSTREAM_REPO=https://github.com/DrVelvetFog/sui-x402-facilitator
-ARG UPSTREAM_COMMIT=37bb8f7920bd602f9c209cab36b38f226cd1c3ea
+ARG UPSTREAM_COMMIT=e8fd48ff3465a1902a7875f4da57b1681a589b0f
 RUN apk add --no-cache git \
  && git clone "$UPSTREAM_REPO" /tmp/upstream \
  && git -C /tmp/upstream checkout "$UPSTREAM_COMMIT" \

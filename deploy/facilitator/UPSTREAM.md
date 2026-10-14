@@ -4,9 +4,9 @@
 |---|---|
 | Repo | https://github.com/DrVelvetFog/sui-x402-facilitator |
 | License | Apache-2.0 © UIG Studios LLC |
-| Pinned commit | `37bb8f7920bd602f9c209cab36b38f226cd1c3ea` |
-| Commit date | 2026-08-07 ("fix(rpc): match only genuine tx-lookup misses in the replay guard") |
-| Pinned on | 2026-08-22 |
+| Pinned commit | `e8fd48ff3465a1902a7875f4da57b1681a589b0f` |
+| Commit date | 2026-09-29 ("fix(verify): reject sponsored payments settle can't broadcast") |
+| Pinned on | 2026-10-14 |
 | Vendored as | git submodule at `deploy/facilitator/upstream` — **unmodified** |
 
 Rule: we never edit files under `upstream/`. All deploy config (Dockerfile,
