@@ -49,7 +49,7 @@ Live-test recipe (spends real testnet USDC): docs/status.md, "Live tests".
 ## Environment notes
 - Testnet e2e wallet is funded; `PAYER_SECRET_KEY` lives in `packages/payer-sui/.env` (gitignored). Keep e2e behind `E2E=1`.
 - Facilitator for e2e: this project's Railway instance `https://facilitator-production-1e79.up.railway.app` (testnet, deployed from `deploy/facilitator/`), or run the submodule locally: `PORT=4402 tsx src/index.ts`. The author's public demo seller is broken (docs/spec-notes.md #12).
-- Installed `@mysten/sui` is 2.26.2.
+- Installed `@mysten/sui` is 2.38.0.
 - Fixtures live in `packages/core/fixtures/`; derive schemas from them, not from memory.
 
 ## Gotchas
