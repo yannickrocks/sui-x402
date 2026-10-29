@@ -43,8 +43,36 @@ Live = `https://sui-facilitator.onrender.com`; pinned = submodule commit in
    not supported: Timestamp-based transaction expiration is not yet
    supported"; observed 2026-08-22, epoch 1199). Epoch-bounded `ValidDuring`
    (`minEpoch`/`maxEpoch`, including `maxEpoch` alone) and the legacy `Epoch`
-   form are accepted. The payer therefore bounds every payment to the current
-   epoch and treats `maxTimeoutSeconds` as a local deadline only.
+   form are accepted. The payer therefore treats `maxTimeoutSeconds` as a
+   local deadline only.
+
+   **Updated Sui exact spec (2026-10).** The scheme now requires
+   `ValidDuring` with both `minEpoch` and `maxEpoch` set, `maxEpoch -
+   minEpoch <= 1` (SHOULD be current and next epoch), and no timestamps. The
+   payer's direct path sets `minEpoch = epoch`, `maxEpoch = epoch + 1`; on the
+   sponsored path the gas station sets the expiration and the payer only
+   validates it. The pinned upstream
+   facilitator never inspects expiration, so live behavior does not enforce
+   this; a spec-conformant facilitator would answer
+   `invalid_exact_sui_payload_invalid_expiration`. `sponsorPayment` also
+   rejects a gas-station response whose expiration is not compliant or names
+   a chain other than the one the payer verified (`sponsor_response_invalid`);
+   it does not compare `minEpoch` with the current epoch, because the sponsored
+   flow never reads it, and it accepts only the `ValidDuring` variant, since
+   the spec's `Validity` variant is absent from `@mysten/sui` below 2.38. When the seller sets `extra.nonce`, the payer adds a
+   raw `Pure` input holding exactly the decoded bytes (not BCS). The spec only
+   says "valid Base64"; the payer is slightly stricter and also refuses an
+   empty nonce (`invalid_nonce`).
+
+   Not adopted, by design or because live behavior wins (rule 9): the
+   spec's facilitator-cosigned sponsorship (`extra.feePayer`,
+   `extra.maxGasBudget`, empty gas payment) differs from our Enoki gas-station
+   flow and is blocked on the upstream settle branch; the spec reason-code
+   renames (for example `invalid_exact_sui_payload_already_executed`) are
+   absent from the pinned upstream ERR table; `sui:devnet`, array signatures,
+   seller-side nonce derivation, address-balance gasless transfers, and
+   exact-equality payTo credit (upstream uses `>=`) are unimplemented.
+
 9. **Reason codes on a seller's repeat 402 (our convention).** The spec does
    not say how a seller reports a rejected payment. Our middleware answers
    402 with a `PaymentRequired` document whose non-spec `error` field carries

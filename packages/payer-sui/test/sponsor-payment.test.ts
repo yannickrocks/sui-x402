@@ -91,10 +91,35 @@ function mockClient(assetCoins: OwnedCoin[], balanceChanges?: BalanceChange[]) {
   return { client, simulations };
 }
 
+const validDuring = (
+  over: Partial<{
+    minEpoch: string | null;
+    maxEpoch: string | null;
+    minTimestamp: string | null;
+    maxTimestamp: string | null;
+    chain: string;
+  }> = {}
+) => ({
+  ValidDuring: {
+    minEpoch: "1200",
+    maxEpoch: "1201",
+    minTimestamp: null,
+    maxTimestamp: null,
+    chain: CHAIN_ID,
+    nonce: 7,
+    ...over,
+  },
+});
+
 /** A well-behaved sponsor: fills sender + sponsor gas onto the submitted kind. */
 async function sponsorFill(
   kindBytes: Uint8Array,
-  over: { sender?: string; gasOwner?: string; budget?: bigint } = {}
+  over: {
+    sender?: string;
+    gasOwner?: string;
+    budget?: bigint;
+    expiration?: Parameters<Transaction["setExpiration"]>[0];
+  } = {}
 ): Promise<Uint8Array> {
   const tx = Transaction.fromKind(kindBytes);
   tx.setSender(over.sender ?? SENDER);
@@ -108,6 +133,7 @@ async function sponsorFill(
   ]);
   tx.setGasPrice(1000n);
   tx.setGasBudget(over.budget ?? 5_000_000n);
+  tx.setExpiration(over.expiration ?? validDuring());
   return tx.build();
 }
 
@@ -219,6 +245,37 @@ describe("sponsorPayment (§6.3 validation)", () => {
     });
   });
 
+  it.each([
+    ["no expiration", { None: true as const }],
+    ["a one-sided epoch window", validDuring({ minEpoch: null })],
+    ["a span above one epoch", validDuring({ maxEpoch: "1202" })],
+    ["a timestamp bound", validDuring({ maxTimestamp: "1900000000000" })],
+    [
+      "a negative epoch span",
+      validDuring({ minEpoch: "1201", maxEpoch: "1200" }),
+    ],
+    [
+      "another chain",
+      validDuring({ chain: "11111111111111111111111111111111" }),
+    ],
+  ])("rejects a sponsor response with %s", async (_label, expiration) => {
+    const { client } = mockClient([coin(50_000n, USDC)]);
+    const kind = await kindFor(client);
+    const { client: gasStation } = station(async (request) => {
+      const bytes = await sponsorFill(
+        fromBase64(request.transactionKindBytes),
+        { expiration: expiration as never }
+      );
+      return {
+        bytes: toBase64(bytes),
+        digest: TransactionDataBuilder.getDigestFromBytes(bytes),
+      };
+    });
+    await expect(
+      sponsorPayment({ client, gasStation, kind, network: "sui:testnet" })
+    ).rejects.toMatchObject({ reason: "sponsor_response_invalid" });
+  });
+
   it("rejects a digest that does not match the bytes (E11)", async () => {
     const { client } = mockClient([coin(50_000n, USDC)]);
     const kind = await kindFor(client);
@@ -291,10 +348,73 @@ describe("sponsorPayment malformed bytes", () => {
   it("maps non-BCS sponsor bytes to a typed sponsor_response_invalid, not a raw throw", async () => {
     const { client } = mockClient([coin(50_000n, USDC)]);
     const kind = await kindFor(client);
-    const { client: gasStation } = station(async () => ({ bytes: "bm90IGEgdHJhbnNhY3Rpb24=", digest: "x" }));
-    await expect(sponsorPayment({ client, gasStation, kind, network: "sui:testnet" })).rejects.toMatchObject({
+    const { client: gasStation } = station(async () => ({
+      bytes: "bm90IGEgdHJhbnNhY3Rpb24=",
+      digest: "x",
+    }));
+    await expect(
+      sponsorPayment({ client, gasStation, kind, network: "sui:testnet" })
+    ).rejects.toMatchObject({
       name: "PaymentBuildError",
       reason: "sponsor_response_invalid",
     });
+  });
+});
+
+describe("sponsorPayment with a server nonce", () => {
+  const raw = Uint8Array.from([9, 8, 7, 6]);
+  const nonceReq = () => req({ extra: { nonce: toBase64(raw) } });
+  const pures = (kindBytes: Uint8Array) =>
+    TransactionDataBuilder.fromKindBytes(kindBytes).inputs.flatMap((i) =>
+      i.$kind === "Pure" ? [i.Pure.bytes] : []
+    );
+
+  it("puts the raw nonce bytes in the kind and keeps them through sponsorship", async () => {
+    const { client } = mockClient([coin(50_000n, USDC)]);
+    const kind = await buildSponsoredPaymentKind({
+      client,
+      sender: SENDER,
+      requirements: nonceReq(),
+    });
+    expect(pures(kind.kindBytes)).toContain(toBase64(raw));
+    const { client: gasStation } = honest();
+    const built = await sponsorPayment({
+      client,
+      gasStation,
+      kind,
+      network: "sui:testnet",
+    });
+    expect(
+      pures(
+        await Transaction.from(built.bytes).build({ onlyTransactionKind: true })
+      )
+    ).toContain(toBase64(raw));
+  });
+
+  it("rejects a sponsor that drops the nonce input", async () => {
+    const { client } = mockClient([coin(50_000n, USDC)]);
+    const kind = await buildSponsoredPaymentKind({
+      client,
+      sender: SENDER,
+      requirements: nonceReq(),
+    });
+    const { client: gasStation } = station(async (request) => {
+      const stripped = TransactionDataBuilder.fromKindBytes(
+        fromBase64(request.transactionKindBytes)
+      );
+      stripped.inputs = stripped.inputs.filter(
+        (i) => !(i.$kind === "Pure" && i.Pure.bytes === toBase64(raw))
+      );
+      const bytes = await sponsorFill(
+        stripped.build({ onlyTransactionKind: true })
+      );
+      return {
+        bytes: toBase64(bytes),
+        digest: TransactionDataBuilder.getDigestFromBytes(bytes),
+      };
+    });
+    await expect(
+      sponsorPayment({ client, gasStation, kind, network: "sui:testnet" })
+    ).rejects.toMatchObject({ reason: "sponsor_altered_payment" });
   });
 });

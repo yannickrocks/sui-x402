@@ -170,6 +170,16 @@ function honestStation() {
       ]);
       tx.setGasPrice(1000n);
       tx.setGasBudget(5_000_000n);
+      tx.setExpiration({
+        ValidDuring: {
+          minEpoch: "1200",
+          maxEpoch: "1201",
+          minTimestamp: null,
+          maxTimestamp: null,
+          chain: CHAIN_ID,
+          nonce: 7,
+        },
+      });
       const bytes = await tx.build();
       return {
         bytes: toBase64(bytes),
