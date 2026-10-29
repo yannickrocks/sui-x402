@@ -19,7 +19,9 @@ import { type CoinRef, coinRef, discoverCoins, selectCoins } from "./coins.js";
 import type { GasStationClient } from "./gas-station.js";
 import {
   PROTOCOL_MAX_TX_GAS,
+  addServerNonce,
   assertChainIdentifier,
+  isCompliantExpiration,
   PaymentBuildError,
   type PaymentClient,
   receivedBy,
@@ -39,6 +41,8 @@ export interface SponsoredPaymentKind {
    * SUI-denominated payment is refused before this object is constructed.
    */
   paymentCoin: CoinRef;
+  /** Genesis digest the payer verified; the sponsor's expiration must name it. */
+  chainIdentifier: string;
 }
 
 export interface BuildSponsoredPaymentOptions {
@@ -93,6 +97,7 @@ export async function buildSponsoredPaymentKind(
   const [paid] = tx.splitCoins(source, [amount]);
   tx.transferObjects([paid], payTo);
   tx.pure.u64(kindNonce());
+  addServerNonce(tx, requirements);
 
   const kindBytes = await tx.build({ onlyTransactionKind: true });
   return {
@@ -102,6 +107,7 @@ export async function buildSponsoredPaymentKind(
     asset,
     amount,
     paymentCoin: coinRef(payment.primary),
+    chainIdentifier,
   };
 }
 
@@ -210,6 +216,11 @@ export async function sponsorPayment(
     );
   }
   if (gasPrice <= 0n) throw invalid(`gas price ${gasPrice} is not positive`);
+  if (!isCompliantExpiration(data.expiration, kind.chainIdentifier)) {
+    throw invalid(
+      "expiration is not ValidDuring on the verified chain with both epochs set, span <= 1 and no timestamps"
+    );
+  }
   const digest = TransactionDataBuilder.getDigestFromBytes(bytes);
   if (digest !== result.digest) {
     throw invalid(

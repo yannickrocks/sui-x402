@@ -10,8 +10,10 @@
 import { Transaction, TransactionDataBuilder } from "@mysten/sui/transactions";
 import {
   SUI_TYPE_ARG,
+  fromBase64,
   normalizeStructTag,
   normalizeSuiAddress,
+  toBase64,
 } from "@mysten/sui/utils";
 import type { PaymentRequirements } from "@sui-x402/core";
 import {
@@ -100,7 +102,9 @@ export type PaymentBuildReason =
   /** Sponsor returned bytes whose kind differs from the submitted kind. */
   | "sponsor_altered_payment"
   /** Sponsor response failed a sender/gasOwner/digest/budget check. */
-  | "sponsor_response_invalid";
+  | "sponsor_response_invalid"
+  /** Seller's `extra.nonce` is not a non-empty, padded Base64 string. */
+  | "invalid_nonce";
 
 export class PaymentBuildError extends Error {
   constructor(readonly reason: PaymentBuildReason, message: string) {
@@ -204,6 +208,62 @@ export function assertChainIdentifier(
 /** Random u32 so a rebuilt payment is a new transaction, not a replay of the old digest. */
 const expirationNonce = (): number => (Math.random() * 0x1_0000_0000) >>> 0;
 
+const stripPadding = (s: string): string => s.replace(/=+$/, "");
+
+function decodeNonce(nonce: unknown): Uint8Array | undefined {
+  if (typeof nonce !== "string" || nonce === "") return undefined;
+  try {
+    const bytes = fromBase64(nonce);
+    return stripPadding(toBase64(bytes)) === stripPadding(nonce)
+      ? bytes
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Adds the seller's `extra.nonce` as a raw `Pure` input holding exactly its decoded bytes. */
+export function addServerNonce(
+  tx: Transaction,
+  requirements: PaymentRequirements
+): void {
+  if (requirements.extra?.nonce === undefined) return;
+  const bytes = decodeNonce(requirements.extra.nonce);
+  if (bytes === undefined) {
+    throw new PaymentBuildError(
+      "invalid_nonce",
+      "extra.nonce must be a non-empty Base64 string"
+    );
+  }
+  tx.pure(bytes);
+}
+
+/**
+ * Spec rule for every payment: `ValidDuring` on the verified chain, both
+ * epochs set, `maxEpoch - minEpoch` in [0, 1], no timestamps.
+ */
+export function isCompliantExpiration(
+  expiration: TransactionDataBuilder["expiration"],
+  chainIdentifier: string
+): boolean {
+  const window =
+    expiration && "ValidDuring" in expiration
+      ? expiration.ValidDuring
+      : undefined;
+  if (
+    !window ||
+    window.minEpoch == null ||
+    window.maxEpoch == null ||
+    window.minTimestamp != null ||
+    window.maxTimestamp != null ||
+    window.chain !== chainIdentifier
+  ) {
+    return false;
+  }
+  const span = BigInt(window.maxEpoch) - BigInt(window.minEpoch);
+  return span >= 0n && span <= 1n;
+}
+
 type Simulated = Extract<
   SimulateResult,
   { $kind: "Transaction" }
@@ -269,11 +329,10 @@ export async function buildPaymentTransaction(
   const tx = new Transaction();
   tx.setSender(sender);
   tx.setGasPrice(gasPrice);
-  // The network does not support timestamp expiry yet (spec-notes #8); the
-  // next epoch is the tightest bound that never fails at an epoch rollover.
+  // Validators reject timestamp expiry, so the window is the current and next epoch (spec-notes #8).
   tx.setExpiration({
     ValidDuring: {
-      minEpoch: null,
+      minEpoch: String(epoch),
       maxEpoch: String(epoch + 1n),
       minTimestamp: null,
       maxTimestamp: null,
@@ -291,6 +350,7 @@ export async function buildPaymentTransaction(
   }
   const [paid] = tx.splitCoins(source, [amount]);
   tx.transferObjects([paid], payTo);
+  addServerNonce(tx, requirements);
 
   // Gas coins cover the amount plus up to maxGasBudget of gas, and the same
   // set is simulated and signed, so the storage rebate in the estimate is the

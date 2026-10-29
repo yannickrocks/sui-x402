@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { SuiGrpcClient } from "@mysten/sui/grpc";
 import { bcs } from "@mysten/sui/bcs";
 import { Transaction, TransactionDataBuilder } from "@mysten/sui/transactions";
-import { SUI_TYPE_ARG, fromBase64, normalizeSuiAddress, toBase58 } from "@mysten/sui/utils";
+import { SUI_TYPE_ARG, fromBase64, normalizeSuiAddress, toBase58, toBase64 } from "@mysten/sui/utils";
 import type { PaymentRequirements } from "@sui-x402/core";
 import { InsufficientBalanceError, type OwnedCoin } from "../src/coins.js";
 import {
@@ -395,16 +395,49 @@ describe("buildPaymentTransaction — SUI asset", () => {
   });
 });
 
+describe("buildPaymentTransaction — server nonce", () => {
+  it("adds a raw Pure input with exactly the decoded extra.nonce bytes", async () => {
+    const raw = Uint8Array.from([1, 2, 3, 250]);
+    const { client, simulations } = mockClient({
+      sui: [coin(10_000_000n, "0x2::sui::SUI")],
+      asset: [coin(50_000n, USDC)],
+    });
+    await buildPaymentTransaction({
+      client,
+      sender: SENDER,
+      requirements: req({ extra: { nonce: toBase64(raw) } }),
+    });
+    const pures = decode(at(simulations, 0)).inputs.flatMap((i) =>
+      i.$kind === "Pure" ? [i.Pure.bytes] : []
+    );
+    expect(pures).toContain(toBase64(raw));
+  });
+
+  it.each([
+    ["a non-string", 42],
+    ["an empty string", ""],
+    ["malformed Base64", "!!!!"],
+  ])("rejects %s extra.nonce with a typed PaymentBuildError", async (_label, nonce) => {
+    const { client } = mockClient({ sui: [coin(10_000_000n, "0x2::sui::SUI")], asset: [coin(50_000n, USDC)] });
+    const err = await rejectsWith(
+      buildPaymentTransaction({ client, sender: SENDER, requirements: req({ extra: { nonce } }) }),
+      PaymentBuildError
+    );
+    expect(err.reason).toBe("invalid_nonce");
+  });
+});
+
 describe("buildPaymentTransaction — expiration", () => {
   const wallet = (): MockOptions => ({ sui: [coin(10_000_000n, "0x2::sui::SUI")], asset: [coin(50_000n, USDC)] });
 
-  it("bounds every payment to the next epoch in the bytes the node dry-runs", async () => {
+  it("bounds every payment to the current and next epoch in the bytes the node dry-runs", async () => {
     const { client, simulations, calls } = mockClient(wallet());
     const built = await buildPaymentTransaction({ client, sender: SENDER, requirements: req() });
     const v = validDuring(decode(at(simulations, 0)));
+    expect(v.minEpoch).toBe(String(EPOCH));
     expect(v.maxEpoch).toBe(String(Number(EPOCH) + 1));
     expect(v.chain).toBe(CHAIN_ID);
-    expect([v.minEpoch, v.minTimestamp, v.maxTimestamp]).toEqual([null, null, null]);
+    expect([v.minTimestamp, v.maxTimestamp]).toEqual([null, null]);
     expect(built.expiresAfterEpoch).toBe(1200n);
     expect(calls.getChainIdentifier).toBe(1);
     expect(calls.getCurrentSystemState).toBe(1);
