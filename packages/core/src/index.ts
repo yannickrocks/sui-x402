@@ -55,7 +55,7 @@ export const PaymentRequirements = z.object({
   asset: StructTag,
   payTo: SuiAddress,
   maxTimeoutSeconds: z.number().int().nonnegative(),
-  extra: z.record(z.unknown()).optional(),
+  extra: z.record(z.string(), z.unknown()).optional(),
 });
 export type PaymentRequirements = z.infer<typeof PaymentRequirements>;
 
@@ -72,7 +72,7 @@ export const PaymentRequired = z.object({
   error: z.string().optional(),
   resource: Resource,
   accepts: z.array(PaymentRequirements).min(1),
-  extensions: z.record(z.unknown()).optional(),
+  extensions: z.record(z.string(), z.unknown()).optional(),
 });
 export type PaymentRequired = z.infer<typeof PaymentRequired>;
 
@@ -99,7 +99,7 @@ export const PaymentPayload = z.object({
   resource: Resource.optional(),
   accepted: PaymentRequirements, // facilitator checks it matches the server's requirements
   payload: SuiExactPayload,
-  extensions: z.record(z.unknown()).optional(),
+  extensions: z.record(z.string(), z.unknown()).optional(),
 });
 export type PaymentPayload = z.infer<typeof PaymentPayload>;
 
@@ -133,12 +133,12 @@ export const SupportedKind = z.object({
   x402Version: z.literal(2),
   scheme: z.string(),
   network: SuiNetwork,
-  extra: z.record(z.unknown()).optional(),
+  extra: z.record(z.string(), z.unknown()).optional(),
 });
 export const Supported = z.object({
   kinds: z.array(SupportedKind),
   extensions: z.array(z.string()),
-  signers: z.record(z.array(z.string())),
+  signers: z.record(z.string(), z.array(z.string())),
 });
 export type Supported = z.infer<typeof Supported>;
 

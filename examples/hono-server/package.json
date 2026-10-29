@@ -10,11 +10,11 @@
   "dependencies": {
     "@sui-x402/hono": "workspace:*",
     "@sui-x402/core": "workspace:*",
-    "@hono/node-server": "^1.13.0",
-    "hono": "^4.6.0"
+    "@hono/node-server": "^2.0.0",
+    "hono": "^4.13.14"
   },
   "devDependencies": {
     "@sui-x402/payer-sui": "workspace:*",
-    "@mysten/sui": "^2.17.0"
+    "@mysten/sui": "^2.38.0"
   }
 }
